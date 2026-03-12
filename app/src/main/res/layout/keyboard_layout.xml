@@ -2,30 +2,29 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:background="#ECEFF1">
+    android:orientation="vertical">
 
     <LinearLayout
-        android:id="@+id/suggestion_bar"
+        android:id="@+id/candidates_bar"
         android:layout_width="match_parent"
-        android:layout_height="48dp"
+        android:layout_height="40dp"
+        android:background="#222222"
         android:orientation="horizontal"
-        android:background="#CFD8DC"
-        android:gravity="center_vertical"
-        android:paddingHorizontal="8dp">
-
+        android:visibility="gone">
         <Button
-            android:id="@+id/btn_paste_or_suggest"
-            android:layout_width="wrap_content"
+	    android:id="@+id/btn_paste_or_suggest" android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Paste"
+            android:text="📋"
             android:textAllCaps="false" />
-            
-        </LinearLayout>
+        <TextView android:id="@+id/sug1" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:gravity="center" android:textColor="#FFFFFF" android:textSize="18sp" android:textStyle="bold" android:clickable="true" android:focusable="true"/>
+        <View android:layout_width="1dp" android:layout_height="match_parent" android:background="#555555" />
+        <TextView android:id="@+id/sug2" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:gravity="center" android:textColor="#FFFFFF" android:textSize="18sp" android:textStyle="bold" android:clickable="true" android:focusable="true"/>
+        <View android:layout_width="1dp" android:layout_height="match_parent" android:background="#555555" />
+        <TextView android:id="@+id/sug3" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:gravity="center" android:textColor="#FFFFFF" android:textSize="18sp" android:textStyle="bold" android:clickable="true" android:focusable="true"/>
+    </LinearLayout>
 
     <com.example.flickkeyboard.FlickKeyboardView
         android:id="@+id/flick_keyboard_view"
         android:layout_width="match_parent"
-        android:layout_height="250dp" />
-
+        android:layout_height="280dp" />
 </LinearLayout>

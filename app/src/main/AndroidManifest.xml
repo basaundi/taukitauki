@@ -3,13 +3,13 @@
 
     <application
         android:allowBackup="true"
-        android:label="Flick Keyboard"
+        android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/Theme.AppCompat.Light">
 
         <service
-            android:name=".FlickKeyboardService"
-            android:label="Flick Keyboard"
+            android:name=".ZirkimakoService"
+            android:label="@string/app_name"
             android:permission="android.permission.BIND_INPUT_METHOD"
             android:exported="true">
             <intent-filter>

@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.flickkeyboard"
+    namespace = "eus.basaundi.zirkimako"
     compileSdk = 35 // Bumped for 2026
 
     defaultConfig {
-        applicationId = "com.example.flickkeyboard"
+        applicationId = "eus.basaundi.zirkimako"
         minSdk = 26
         targetSdk = 35
         versionCode = 1

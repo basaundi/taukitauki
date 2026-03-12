@@ -1,4 +1,4 @@
-package com.example.flickkeyboard
+package eus.basaundi.zirkimako
 
 enum class FlickDirection {
     TAP, UP, DOWN, LEFT, RIGHT, UP_LEFT, UP_RIGHT, DOWN_LEFT, DOWN_RIGHT

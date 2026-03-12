@@ -1,4 +1,4 @@
-package com.example.flickkeyboard
+package eus.basaundi.zirkimako
 
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase

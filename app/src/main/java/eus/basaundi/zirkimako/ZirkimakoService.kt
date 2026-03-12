@@ -1,21 +1,19 @@
-package com.example.flickkeyboard
+package eus.basaundi.zirkimako
 
 import android.os.Handler
 import android.os.Looper
-import android.content.Context
 import android.inputmethodservice.InputMethodService
 import android.view.KeyEvent
 import android.view.View
 import android.view.inputmethod.InputMethodManager
-import android.widget.LinearLayout
 import android.widget.TextView
 import android.text.TextUtils
 import android.view.inputmethod.EditorInfo
 
 
-class FlickKeyboardService : InputMethodService() {
+class ZirkimakoService : InputMethodService() {
 
-    private lateinit var keyboardView: FlickKeyboardView
+    private lateinit var keyboardView: ZirkimakoView
     private lateinit var sug1: TextView
     private lateinit var sug2: TextView
     private lateinit var sug3: TextView
@@ -29,10 +27,9 @@ class FlickKeyboardService : InputMethodService() {
         "t" to "d", "d" to "t", "n" to "ñ", "ñ" to "n",
         "p" to "b", "b" to "p", "s" to "ts", "ts" to "s",
         "x" to "tx", "tx" to "x", "l" to "r", "r" to "l",
-	"j" to "y", "y" to "j"
+        "j" to "y", "y" to "j",
+        "a" to "ah", "ah" to "a"
     )
-
-    private val basqueDict = mapOf("kaixo" to 100, "egun" to 90, "on" to 85, "eta" to 80, "ba" to 70, "ez" to 60, "baina" to 50)
 
     private lateinit var dbHelper: DictionaryDatabaseHelper
     private val uiHandler = Handler(Looper.getMainLooper())
@@ -40,27 +37,27 @@ class FlickKeyboardService : InputMethodService() {
     private val basqueLayout = mapOf(
         Pair(0,0) to FlickKey("sa","su","so","si","se", ur="s"),
         Pair(0,1) to FlickKey("a","u","o","i","e"),
-        Pair(0,2) to FlickKey("ga","gu","go","gi","ge", ur="k"),
-        Pair(0,3) to FlickKey("za","zu","zo","zi","ze", ur="z"),
-        Pair(1,1) to FlickKey("da","du","do","di","de", ur="t"),
-        Pair(1,2) to FlickKey("na","nu","no","ni","ne", ur="n"),
-        Pair(1,3) to FlickKey("ba","bu","bo","bi","be", ur="p"),
-        Pair(2,0) to FlickKey("xa","xu","xo","xi","xe", ur="x"),
-        Pair(2,1) to FlickKey("ma","mu","mo","mi","me", ur="m"),
-        Pair(2,2) to FlickKey("ja","ju","jo","ji","je", ur="j"),
-        Pair(2,3) to FlickKey("la","lu","lo","li","le", ur="l"),
+        Pair(0,2) to FlickKey("ga","gu","go","gi","ge", ur="k", dl="g"),
+        Pair(0,3) to FlickKey("za","zu","zo","zi","ze", ur="z", dl="tz"),
+        Pair(1,1) to FlickKey("da","du","do","di","de", ur="t", dl="d"),
+        Pair(1,2) to FlickKey("na","nu","no","ni","ne", ur="n", dl="ñ"),
+        Pair(1,3) to FlickKey("ba","bu","bo","bi","be", ur="p", dl="b"),
+        Pair(2,0) to FlickKey("xa","xu","xo","xi","xe", ur="x", dl="tx"),
+        Pair(2,1) to FlickKey("ma","mu","mo","mi","me", ur="m", dl="v"),
+        Pair(2,2) to FlickKey("ja","ju","jo","ji","je", ur="j", dl="y"),
+        Pair(2,3) to FlickKey("la","lu","lo","li","le", ur="l", dl="r"),
         Pair(3,2) to FlickKey("ha","hu","ho","hi","he", ur="h"),
-        Pair(3,3) to FlickKey(", ","? ",". ",": ","! ", ur="; ")
+        Pair(3,3) to FlickKey(", ","? ",". ",": ","! ", ur="; ", ul="-")
     )
 
     override fun onCreateInputView(): View {
         val root = layoutInflater.inflate(R.layout.keyboard_layout, null)
-        keyboardView = root.findViewById(R.id.flick_keyboard_view)
+        keyboardView = root.findViewById(R.id.zirkimako_keyboard_view)
         sug1 = root.findViewById(R.id.sug1)
-	sug2 = root.findViewById(R.id.sug2)
-	sug3 = root.findViewById(R.id.sug3)
-	sug4 = root.findViewById(R.id.sug4)
-	sug5 = root.findViewById(R.id.sug5)
+        sug2 = root.findViewById(R.id.sug2)
+        sug3 = root.findViewById(R.id.sug3)
+        sug4 = root.findViewById(R.id.sug4)
+        sug5 = root.findViewById(R.id.sug5)
         
         keyboardView.layoutMap = basqueLayout
         keyboardView.keyActionListener = { r, c, d -> handleAction(r, c, d) }
@@ -69,10 +66,10 @@ class FlickKeyboardService : InputMethodService() {
         
         val sL = View.OnClickListener { v -> commitWord((v as TextView).text.toString()) }
         sug1.setOnClickListener(sL)
-	sug2.setOnClickListener(sL)
-	sug3.setOnClickListener(sL)
-	sug4.setOnClickListener(sL)
-	sug5.setOnClickListener(sL)
+        sug2.setOnClickListener(sL)
+        sug3.setOnClickListener(sL)
+        sug4.setOnClickListener(sL)
+        sug5.setOnClickListener(sL)
         
         return root
     }
@@ -80,16 +77,28 @@ class FlickKeyboardService : InputMethodService() {
     private fun handleAction(r: Int, c: Int, d: FlickDirection) {
         val ic = currentInputConnection ?: return
         when {
+            // <- arrow
             r == 1 && c == 0 -> { commitCurrent(); ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_LEFT)) }
+            // -> arrow
             r == 1 && c == 4 -> { commitCurrent(); ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_RIGHT)) }
-            r == 2 && c == 4 -> { commitCurrent(); ic.commitText(" ", 1) }
-            r == 3 && c == 0 -> cycleMode()
-            r == 3 && c == 1 -> performMutation()
+            // _ space
+            r == 2 && c == 4 -> { commitCurrent(); ic.commitText(getString(R.string.space), 1) }
+            // enter
             r == 3 && c == 4 -> { commitCurrent(); ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER)) }
+
+            // lowercase - uppercase - numpad
+            r == 3 && c == 0 -> cycleMode()
+            // mutate consonant
+            r == 3 && c == 1 -> performMutation()
             else -> {
                 val s = getChar(r, c, d) ?: return
-                if (s.matches(Regex("[.,?!;]\\s*"))) { commitCurrent(); ic.commitText(s, 1) } 
-                else { composingWord.append(s); updateUI() }
+                if (s.matches(Regex("[.,?!;:-]\\s*"))) {
+                    commitCurrent()
+                    ic.commitText(s, 1)
+                } else {
+                    composingWord.append(s)
+                    updateUI()
+                }
             }
         }
     }
@@ -155,31 +164,39 @@ class FlickKeyboardService : InputMethodService() {
 
     private fun refreshKeyboardModeUI() {
         keyboardView.isUppercase = (currentMode == KeyboardMode.UPPER)
-        keyboardView.modeLabel = when(currentMode) { KeyboardMode.LOWER -> "abc"; KeyboardMode.UPPER -> "ABC"; else -> "?123" }
+        keyboardView.modeLabel = when(currentMode) {
+            KeyboardMode.LOWER -> getString(R.string.mode_lower)
+            KeyboardMode.UPPER -> getString(R.string.mode_upper)
+            else -> getString(R.string.mode_number)
+        }
         keyboardView.invalidate()
     }
 
     private fun updateUI() {
         val ic = currentInputConnection ?: return
-	val word = composingWord.toString()
+        val word = composingWord.toString()
         ic.setComposingText(word, 1)
         
-	Thread {
+        Thread {
             val searchPrefix = word.lowercase()
             val preds = dbHelper.getSuggestions(searchPrefix)
-	    uiHandler.post {
-	        if(composingWord.toString() == word){
+            uiHandler.post {
+                if(composingWord.toString() == word){
                     sug1.text = preds.getOrNull(0) ?: ""
                     sug2.text = preds.getOrNull(1) ?: ""
                     sug3.text = preds.getOrNull(2) ?: ""
                     sug4.text = preds.getOrNull(3) ?: ""
                     sug5.text = preds.getOrNull(4) ?: ""
-		}
             }
+        }
         }.start()
         
         val lastC = getLC(composingWord.toString())
-        keyboardView.swapLabel = if (lastC.isNotEmpty()) "$lastC→${mutationMap[lastC]}" else "⟳"
+        keyboardView.swapLabel = if (lastC.isNotEmpty()) {
+            getString(R.string.swap_indicator_format, lastC, mutationMap[lastC])
+        } else {
+            getString(R.string.label_swap)
+        }
         keyboardView.invalidate()
     }
 
@@ -194,7 +211,7 @@ class FlickKeyboardService : InputMethodService() {
     
     private fun commitWord(w: String) { 
         if (w.isNotEmpty()) { 
-            currentInputConnection?.commitText("$w ", 1)
+            currentInputConnection?.commitText(getString(R.string.word_with_space_format, w), 1)
             composingWord.clear()
             updateUI()
             updateCapsMode() // Check for caps after committing a word
@@ -226,7 +243,7 @@ class FlickKeyboardService : InputMethodService() {
             FlickDirection.DOWN -> k.down
             FlickDirection.UP_RIGHT -> k.ur
             FlickDirection.DOWN_RIGHT -> k.down
-            FlickDirection.DOWN_LEFT -> k.left
+            FlickDirection.DOWN_LEFT -> k.dl
             FlickDirection.UP_LEFT -> k.up
         }
         

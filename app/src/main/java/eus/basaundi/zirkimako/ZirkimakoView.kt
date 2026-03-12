@@ -1,4 +1,4 @@
-package com.example.flickkeyboard
+package eus.basaundi.zirkimako
 
 import android.content.Context
 import android.graphics.*
@@ -11,7 +11,7 @@ import android.view.View
 import kotlin.math.atan2
 import kotlin.math.hypot
 
-class FlickKeyboardView(context: Context, attrs: AttributeSet?) : View(context, attrs) {
+class ZirkimakoView(context: Context, attrs: AttributeSet?) : View(context, attrs) {
 
     private val rows = 4
     private val cols = 5

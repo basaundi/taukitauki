@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Zirkimako</string>
+    <string name="mode_lower">abc</string>
+    <string name="mode_upper">ABC</string>
+    <string name="mode_number">123?</string>
+    <string name="label_swap">⟳</string>
+    <string name="swap_indicator_format">%1$s→%2$s</string>
+    <string name="space"> </string>
+    <string name="word_with_space_format">%1$s </string>
+    <string name="label_paste">📋</string>
+    <string name="candidate_placeholder">sug</string>
+</resources>

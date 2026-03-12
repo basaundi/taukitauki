@@ -15,7 +15,6 @@ data class FlickKey(
     val dl: String? = null,
     val dr: String? = null
 ) {
-    // If all diagonals are null, it's a 4-way key
     val is8Way: Boolean 
         get() = ul != null || ur != null || dl != null || dr != null
 }

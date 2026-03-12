@@ -11,16 +11,62 @@
         android:background="#1a1a1a"
         android:orientation="horizontal"
         android:visibility="visible">
+
         <Button
-	    android:id="@+id/btn_paste_or_suggest" android:layout_width="wrap_content"
+            android:id="@+id/btn_paste_or_suggest"
+            android:layout_width="28dp"
             android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:paddingHorizontal="0dp"
+            android:paddingVertical="0dp"
             android:text="📋"
             android:textAllCaps="false" />
-        <TextView android:id="@+id/sug1" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:gravity="center" android:textColor="#FFFFFF" android:textSize="18sp" android:textStyle="bold" android:clickable="true" android:focusable="true"/>
-        <View android:layout_width="1dp" android:layout_height="match_parent" android:background="#555555" />
-        <TextView android:id="@+id/sug2" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:gravity="center" android:textColor="#FFFFFF" android:textSize="18sp" android:textStyle="bold" android:clickable="true" android:focusable="true"/>
-        <View android:layout_width="1dp" android:layout_height="match_parent" android:background="#555555" />
-        <TextView android:id="@+id/sug3" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:gravity="center" android:textColor="#FFFFFF" android:textSize="18sp" android:textStyle="bold" android:clickable="true" android:focusable="true"/>
+
+        <TextView
+            android:id="@+id/sug1"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:layout_weight="10"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center"
+            android:text="sug1"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp" />
+
+        <View
+            android:layout_width="1dp"
+            android:layout_height="match_parent"
+            android:background="#555555" />
+
+        <TextView
+            android:id="@+id/sug2"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:layout_weight="10"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center"
+            android:text="sug2"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp" />
+
+        <View
+            android:layout_width="1dp"
+            android:layout_height="match_parent"
+            android:background="#555555" />
+
+        <TextView
+            android:id="@+id/sug3"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:layout_weight="10"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center"
+            android:text="sug3"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp" />
     </LinearLayout>
 
     <com.example.flickkeyboard.FlickKeyboardView

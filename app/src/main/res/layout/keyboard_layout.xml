@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="#ECEFF1">
+
+    <LinearLayout
+        android:id="@+id/suggestion_bar"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:orientation="horizontal"
+        android:background="#CFD8DC"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="8dp">
+
+        <Button
+            android:id="@+id/btn_paste_or_suggest"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Paste"
+            android:textAllCaps="false" />
+            
+        </LinearLayout>
+
+    <com.example.flickkeyboard.FlickKeyboardView
+        android:id="@+id/flick_keyboard_view"
+        android:layout_width="match_parent"
+        android:layout_height="250dp" />
+
+</LinearLayout>

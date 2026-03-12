@@ -67,6 +67,40 @@
             android:text="sug3"
             android:textColor="#FFFFFF"
             android:textSize="12sp" />
+
+        <View
+            android:layout_width="1dp"
+            android:layout_height="match_parent"
+            android:background="#555555" />
+
+        <TextView
+            android:id="@+id/sug4"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:layout_weight="10"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center"
+            android:text="sug3"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp" />
+
+        <View
+            android:layout_width="1dp"
+            android:layout_height="match_parent"
+            android:background="#555555" />
+
+        <TextView
+            android:id="@+id/sug5"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:layout_weight="10"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center"
+            android:text="sug3"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp" />
     </LinearLayout>
 
     <com.example.flickkeyboard.FlickKeyboardView

@@ -19,8 +19,8 @@ class ZirkimakoView(context: Context, attrs: AttributeSet?) : View(context, attr
     private var cellHeight = 0f
     
     var layoutMap: Map<Pair<Int, Int>, FlickKey> = emptyMap()
-    var modeLabel = "abc"
-    var swapLabel = "⟳"
+    var modeLabel = context.getString(R.string.mode_lower)
+    var swapLabel = context.getString(R.string.label_swap)
     var isUppercase = false
 
     private var pressedRow = -1
@@ -28,6 +28,8 @@ class ZirkimakoView(context: Context, attrs: AttributeSet?) : View(context, attr
 
     private val paintGrid = Paint().apply { strokeWidth = 2f; style = Paint.Style.STROKE; color = 0xFF333333.toInt() }
     private val paintHighlight = Paint().apply { style = Paint.Style.FILL; color = 0xFF444444.toInt() }
+    private val paintSpecialKey = Paint().apply { style = Paint.Style.FILL; color = 0xFF222222.toInt() }
+    private val paintEnterKey = Paint().apply { style = Paint.Style.FILL; color = 0xFF1565C0.toInt() }
     private val paintCenterText = Paint().apply { textAlign = Paint.Align.CENTER; isFakeBoldText = true; color = Color.WHITE }
     private val paintFlickText = Paint().apply { textAlign = Paint.Align.CENTER; textSize = 26f; color = Color.LTGRAY }
 
@@ -69,19 +71,29 @@ class ZirkimakoView(context: Context, attrs: AttributeSet?) : View(context, attr
                 val left = c * cellWidth
                 val top = r * cellHeight
                 
+                // Background for special keys
+                when {
+                    r == 3 && c == 4 -> {
+                        canvas.drawRect(left, top, left + cellWidth, top + cellHeight, paintEnterKey)
+                    }
+                    (r == 0 && c == 4) || (r == 1 && c == 0) || (r == 1 && c == 4) || (r == 2 && c == 4) || (r == 3 && c == 0) || (r == 3 && c == 1) -> {
+                        canvas.drawRect(left, top, left + cellWidth, top + cellHeight, paintSpecialKey)
+                    }
+                }
+                
                 if (r == pressedRow && c == pressedCol) {
                     canvas.drawRect(left, top, left + cellWidth, top + cellHeight, paintHighlight)
                 }
                 canvas.drawRect(left, top, left + cellWidth, top + cellHeight, paintGrid)
 
                 val specialLabel = when {
-                    r == 0 && c == 4 -> "⌫"
-                    r == 1 && c == 0 -> "←"
-                    r == 1 && c == 4 -> "→"
-                    r == 2 && c == 4 -> "␣"
+                    r == 0 && c == 4 -> context.getString(R.string.label_backspace)
+                    r == 1 && c == 0 -> context.getString(R.string.label_left)
+                    r == 1 && c == 4 -> context.getString(R.string.label_right)
+                    r == 2 && c == 4 -> context.getString(R.string.label_space_key)
                     r == 3 && c == 0 -> modeLabel
                     r == 3 && c == 1 -> swapLabel
-                    r == 3 && c == 4 -> "⏎"
+                    r == 3 && c == 4 -> context.getString(R.string.label_enter)
                     else -> null
                 }
 
@@ -105,6 +117,11 @@ class ZirkimakoView(context: Context, attrs: AttributeSet?) : View(context, attr
         format(key.down)?.let { canvas.drawText(it, cx, top + cellHeight - 15, paintFlickText) }
         format(key.left)?.let { canvas.drawText(it, left + 25, cy + 10, paintFlickText) }
         format(key.right)?.let { canvas.drawText(it, left + cellWidth - 25, cy + 10, paintFlickText) }
+        
+        format(key.ul)?.let { canvas.drawText(it, left + 30, top + 35, paintFlickText) }
+        format(key.ur)?.let { canvas.drawText(it, left + cellWidth - 30, top + 35, paintFlickText) }
+        format(key.dl)?.let { canvas.drawText(it, left + 30, top + cellHeight - 15, paintFlickText) }
+        format(key.dr)?.let { canvas.drawText(it, left + cellWidth - 30, top + cellHeight - 15, paintFlickText) }
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {

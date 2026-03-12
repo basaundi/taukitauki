@@ -10,4 +10,9 @@
     <string name="word_with_space_format">%1$s </string>
     <string name="label_paste">📋</string>
     <string name="candidate_placeholder">sug</string>
+    <string name="label_backspace">⌫</string>
+    <string name="label_left">←</string>
+    <string name="label_right">→</string>
+    <string name="label_space_key">␣</string>
+    <string name="label_enter">⏎</string>
 </resources>

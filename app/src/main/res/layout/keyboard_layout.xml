@@ -8,9 +8,9 @@
         android:id="@+id/candidates_bar"
         android:layout_width="match_parent"
         android:layout_height="40dp"
-        android:background="#222222"
+        android:background="#1a1a1a"
         android:orientation="horizontal"
-        android:visibility="gone">
+        android:visibility="visible">
         <Button
 	    android:id="@+id/btn_paste_or_suggest" android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -26,5 +26,5 @@
     <com.example.flickkeyboard.FlickKeyboardView
         android:id="@+id/flick_keyboard_view"
         android:layout_width="match_parent"
-        android:layout_height="280dp" />
+        android:layout_height="220dp" />
 </LinearLayout>

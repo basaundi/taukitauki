@@ -2,6 +2,6 @@
 <input-method xmlns:android="http://schemas.android.com/apk/res/android"
     android:isDefault="false">
     <subtype
-        android:imeSubtypeLocale="en_US"
+        android:imeSubtypeLocale="eu"
         android:imeSubtypeMode="keyboard" />
 </input-method>

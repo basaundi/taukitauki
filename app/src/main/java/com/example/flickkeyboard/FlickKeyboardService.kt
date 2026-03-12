@@ -136,7 +136,9 @@ class FlickKeyboardService : InputMethodService() {
         val ic = currentInputConnection ?: return
         if (composingWord.isEmpty()) {
             ic.finishComposingText()
-            candidatesBar.visibility = View.GONE
+	    sug1.text = ""
+	    sug2.text = ""
+	    sug3.text = ""
             return
         }
 

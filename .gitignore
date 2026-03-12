@@ -5,3 +5,5 @@ gradlew.bat
 .kotlin
 .apk
 build
+.idea
+local.properties

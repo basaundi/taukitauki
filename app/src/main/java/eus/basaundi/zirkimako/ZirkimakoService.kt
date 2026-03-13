@@ -9,7 +9,6 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.TextView
 import android.text.TextUtils
 import android.view.inputmethod.EditorInfo
-import android.util.Log
 
 
 class ZirkimakoService : InputMethodService() {
@@ -146,11 +145,9 @@ class ZirkimakoService : InputMethodService() {
                     commitCurrent()
                     ic.commitText(s, 1)
                     lastInput = ""
-                    Log.d("ZirkimakoService", "ZirkimakoService.kt:132 - lastInput cleared (punct): $s")
                 } else {
                     composingWord.append(s)
                     lastInput = s
-                    Log.d("ZirkimakoService", "ZirkimakoService.kt:136 - lastInput set: $lastInput")
                     updateUI()
                 }
             }
@@ -158,7 +155,6 @@ class ZirkimakoService : InputMethodService() {
     }
 
     private fun performMutation() {
-        Log.d("ZirkimakoService", "ZirkimakoService.kt:143 - performMutation entry. lastInput: $lastInput")
         if (lastInput.isEmpty()) return
         
         var searchKey = lastInput.lowercase()
@@ -172,12 +168,10 @@ class ZirkimakoService : InputMethodService() {
                 vowel = match.value
                 searchKey = lastInput.substring(0, lastInput.length - vowel.length).lowercase()
                 targetLower = mutationMap[searchKey]
-                Log.d("ZirkimakoService", "ZirkimakoService.kt:157 - Vowel stripped: '$vowel', searchKey: '$searchKey', target: '$targetLower'")
             }
         }
         
         if (targetLower == null) {
-            Log.d("ZirkimakoService", "ZirkimakoService.kt:162 - No mutation found for '$lastInput'")
             return
         }
 
@@ -192,11 +186,9 @@ class ZirkimakoService : InputMethodService() {
         }
 
         val idx = composingWord.lastIndexOf(lastInput)
-        Log.d("ZirkimakoService", "ZirkimakoService.kt:177 - replacing '$lastInput' at $idx in '$composingWord' with '$targetWithCase'")
         if (idx != -1) {
             composingWord.replace(idx, idx + lastInput.length, targetWithCase)
             lastInput = targetWithCase
-            Log.d("ZirkimakoService", "ZirkimakoService.kt:181 - Mutation success. composingWord: $composingWord")
             updateUI()
         }
     }

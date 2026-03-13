@@ -35,7 +35,7 @@ class DictionaryDatabaseHelper(private val context: Context) : SQLiteOpenHelper(
 
     override fun onUpgrade(db: SQLiteDatabase, old: Int, new: Int) {}
 
-    fun getSuggestions(prefix: String, limit: Int = 3): List<String> {
+    fun getSuggestions(prefix: String, limit: Int = 5): List<String> {
         if (prefix.isBlank()) return emptyList()
         val suggestions = mutableListOf<String>()
         

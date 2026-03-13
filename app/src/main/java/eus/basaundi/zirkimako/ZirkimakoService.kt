@@ -24,30 +24,41 @@ class ZirkimakoService : InputMethodService() {
 
     private val mutationMap = mapOf(
         "k" to "g", "g" to "k", "z" to "tz", "tz" to "z",
-        "t" to "d", "d" to "t", "n" to "ñ", "ñ" to "n",
+        "t" to "d", "d" to "t", "n" to "l", "l" to "n",
         "p" to "b", "b" to "p", "s" to "ts", "ts" to "s",
-        "x" to "tx", "tx" to "x", "l" to "r", "r" to "l",
-        "j" to "y", "y" to "j",
-        "a" to "ah", "ah" to "a"
+        "x" to "tx", "tx" to "x", "r" to "rr", "rr" to "r",
+        "m" to "j", "j" to "m",
     )
 
     private lateinit var dbHelper: DictionaryDatabaseHelper
     private val uiHandler = Handler(Looper.getMainLooper())
 
     private val basqueLayout = mapOf(
-        Pair(0,0) to FlickKey("sa","su","so","si","se", ur="s"),
-        Pair(0,1) to FlickKey("a","u","o","i","e"),
-        Pair(0,2) to FlickKey("ga","gu","go","gi","ge", ur="k", dl="g"),
-        Pair(0,3) to FlickKey("za","zu","zo","zi","ze", ur="z", dl="tz"),
-        Pair(1,1) to FlickKey("da","du","do","di","de", ur="t", dl="d"),
-        Pair(1,2) to FlickKey("na","nu","no","ni","ne", ur="n", dl="ñ"),
-        Pair(1,3) to FlickKey("ba","bu","bo","bi","be", ur="p", dl="b"),
-        Pair(2,0) to FlickKey("xa","xu","xo","xi","xe", ur="x", dl="tx"),
-        Pair(2,1) to FlickKey("ma","mu","mo","mi","me", ur="m", dl="v"),
-        Pair(2,2) to FlickKey("ja","ju","jo","ji","je", ur="j", dl="y"),
-        Pair(2,3) to FlickKey("la","lu","lo","li","le", ur="l", dl="r"),
-        Pair(3,2) to FlickKey("ha","hu","ho","hi","he", ur="h"),
-        Pair(3,3) to FlickKey(", ","? ",". ",": ","! ", ur="; ", ul="-")
+        Pair(0,1) to FlickKey("a","u","o","i","e",
+                              ur="ü", dr="´", dl="y", ul="w"),
+        Pair(0,2) to FlickKey("ka","ku","ko","ki","ke",
+                              ur="k", dr="c", dl="g", ul="q"),
+        Pair(0,3) to FlickKey("za","zu","zo","zi","ze",
+                              ur="z", dl="tz", ul="ç"),
+
+        Pair(1,1) to FlickKey("ta","tu","to","ti","te",
+                              ur="t", dl="d"),
+        Pair(1,2) to FlickKey("na","nu","no","ni","ne",
+                              ur="n", dr="ñ", dl="l"),
+        Pair(1,3) to FlickKey("ba","bu","bo","bi","be",
+                              ur="b", dr="f", dl="p", ul="v"),
+
+        Pair(2,1) to FlickKey("ma","mu","mo","mi","me",
+                              ur="m", dl="j"),
+        Pair(2,2) to FlickKey("sa","su","so","si","se",
+                               ur="s", dl="tz"),
+        Pair(2,3) to FlickKey("ra","ru","ro","ri","re",
+                              ur="r"),
+
+        Pair(3,2) to FlickKey("xa","xu","xo","xi","xe",
+                              ur="x", dl="tx"),
+        Pair(3,3) to FlickKey(", ","? ",". ","-","! ",
+                              ur="@", ul="%", dr="*", dl="+") // ,?!.-  €*+=%  ;@|:_ ·  $~#^&
     )
 
     override fun onCreateInputView(): View {
@@ -82,7 +93,7 @@ class ZirkimakoService : InputMethodService() {
             // -> arrow
             r == 1 && c == 4 -> { commitCurrent(); ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_RIGHT)) }
             // _ space
-            r == 2 && c == 4 -> { commitCurrent(); ic.commitText(getString(R.string.space), 1) }
+            r == 2 && c == 4 -> { commitCurrent(); ic.commitText(" ", 1) }
             // enter
             r == 3 && c == 4 -> { commitCurrent(); ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER)) }
 
@@ -118,7 +129,7 @@ class ZirkimakoService : InputMethodService() {
         val motz = w.replace("[aeiouAEIOU]+$".toRegex(), "")
         if (motz.length >= 2) {
             val l2 = motz.takeLast(2).lowercase()
-            if (l2 in listOf("tz", "tx", "ts")) return l2
+            if (l2 in listOf("tz", "tx", "ts", "rr")) return l2
         }
         val l1 = motz.takeLast(1).lowercase()
         return if (l1 in mutationMap) l1 else ""

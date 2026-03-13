@@ -30,6 +30,8 @@ class ZirkimakoService : InputMethodService() {
         "x" to "tx", "tx" to "x", "r" to "rr", "rr" to "r",
         "m" to "j", "j" to "m", "h" to "",
         "a" to "ha", "e" to "he", "i" to "hi", "o" to "ho", "u" to "hu", "ü" to "hü",
+        "(" to ")", ")" to "(", "\"" to "'", "'" to "\"", "{" to "}", "}" to "{",
+        "<" to ">", ">" to "<", "[" to "]", "]" to "[", "/" to "\\", "\\" to "/",
     )
 
     private lateinit var dbHelper: DictionaryDatabaseHelper
@@ -104,7 +106,7 @@ class ZirkimakoService : InputMethodService() {
                     nextShifted -> suggestion.replaceFirstChar { it.uppercase() }
                     else -> suggestion.lowercase()
                 }
-                commitWord(formatted)
+                commitWord("$formatted ")
             }
         }
         sug1.setOnClickListener(sL)

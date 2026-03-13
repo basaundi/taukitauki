@@ -115,7 +115,12 @@ class ZirkimakoView(context: Context, attrs: AttributeSet?) : View(context, attr
         val cx = left + cellWidth / 2
         val cy = top + cellHeight / 2
         
-        fun format(s: String?) = if (isUppercase) s?.uppercase() else s
+        fun format(s: String?) = when {
+            s == null -> null
+            isUppercase -> s.uppercase()
+            isShifted -> s.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+            else -> s
+        }
 
         format(key.tap)?.let { canvas.drawText(it, cx, cy + 15, paintCenterText) }
         format(key.up)?.let { canvas.drawText(it, cx, top + 35, paintFlickText) }

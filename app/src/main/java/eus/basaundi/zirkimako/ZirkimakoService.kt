@@ -21,6 +21,7 @@ class ZirkimakoService : InputMethodService() {
     private lateinit var sug5: TextView
     private var composingWord = StringBuilder()
     private var currentMode = KeyboardMode.LOWER
+    private var nextShifted = false
 
     private val mutationMap = mapOf(
         "k" to "g", "g" to "k", "z" to "tz", "tz" to "z",
@@ -34,8 +35,10 @@ class ZirkimakoService : InputMethodService() {
     private val uiHandler = Handler(Looper.getMainLooper())
 
     private val basqueLayout = mapOf(
+        Pair(0,0) to FlickKey("(","[","{","<","\"",
+                              ur="/", dl="@", dr="&", ul="|"),
         Pair(0,1) to FlickKey("a","u","o","i","e",
-                              ur="ü", dr="´", dl="y", ul="w"),
+                              ur="ü", dr="h", dl="y", ul="w"),
         Pair(0,2) to FlickKey("ka","ku","ko","ki","ke",
                               ur="k", dr="c", dl="g", ul="q"),
         Pair(0,3) to FlickKey("za","zu","zo","zi","ze",
@@ -48,17 +51,34 @@ class ZirkimakoService : InputMethodService() {
         Pair(1,3) to FlickKey("ba","bu","bo","bi","be",
                               ur="b", dr="f", dl="p", ul="v"),
 
+        Pair(2,0) to FlickKey("⇧"),
+
         Pair(2,1) to FlickKey("ma","mu","mo","mi","me",
                               ur="m", dl="j"),
         Pair(2,2) to FlickKey("sa","su","so","si","se",
                                ur="s", dl="tz"),
         Pair(2,3) to FlickKey("ra","ru","ro","ri","re",
-                              ur="r"),
+                              ur="r", dl="h"),
 
         Pair(3,2) to FlickKey("xa","xu","xo","xi","xe",
                               ur="x", dl="tx"),
         Pair(3,3) to FlickKey(", ","? ",". ","-","! ",
-                              ur="@", ul="%", dr="*", dl="+") // ,?!.-  €*+=%  ;@|:_ ·  $~#^&
+                              ur="@", ul="%", dr="*", dl="+")
+    )
+
+    private val numLayout = mapOf(
+        Pair(0,1) to FlickKey("1"),
+        Pair(0,2) to FlickKey("2"),
+        Pair(0,3) to FlickKey("3"),
+        Pair(1,1) to FlickKey("4"),
+        Pair(1,2) to FlickKey("5"),
+        Pair(1,3) to FlickKey("6"),
+        Pair(2,1) to FlickKey("7"),
+        Pair(2,2) to FlickKey("8"),
+        Pair(2,3) to FlickKey("9"),
+        Pair(3,2) to FlickKey("0"),
+        Pair(3,3) to FlickKey(".", ",", ":", ";", "/",
+                              ul="(", ur=")", dl="[", dr="]") //, up="<", down=">", left="{", right="}")
     )
 
     override fun onCreateInputView(): View {
@@ -75,7 +95,17 @@ class ZirkimakoService : InputMethodService() {
         keyboardView.backspaceListener = { handleBackspace() }
         keyboardView.longPressListener = { r, c -> if (r==2 && c==4) (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).showInputMethodPicker() }
         
-        val sL = View.OnClickListener { v -> commitWord((v as TextView).text.toString()) }
+        val sL = View.OnClickListener { v -> 
+            val suggestion = (v as TextView).text.toString()
+            if (suggestion.isNotEmpty()) {
+                val formatted = when {
+                    currentMode == KeyboardMode.UPPER -> suggestion.uppercase()
+                    nextShifted -> suggestion.replaceFirstChar { it.uppercase() }
+                    else -> suggestion.lowercase()
+                }
+                commitWord(formatted)
+            }
+        }
         sug1.setOnClickListener(sL)
         sug2.setOnClickListener(sL)
         sug3.setOnClickListener(sL)
@@ -88,6 +118,13 @@ class ZirkimakoService : InputMethodService() {
     private fun handleAction(r: Int, c: Int, d: FlickDirection) {
         val ic = currentInputConnection ?: return
         when {
+            // shift (2,0)
+            r == 2 && c == 0 -> {
+                if (currentMode != KeyboardMode.NUM) {
+                    nextShifted = !nextShifted
+                    refreshKeyboardModeUI()
+                }
+            }
             // <- arrow
             r == 1 && c == 0 -> { commitCurrent(); ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_LEFT)) }
             // -> arrow
@@ -103,7 +140,7 @@ class ZirkimakoService : InputMethodService() {
             r == 3 && c == 1 -> performMutation()
             else -> {
                 val s = getChar(r, c, d) ?: return
-                if (s.matches(Regex("[.,?!;:-]\\s*"))) {
+                if (s.matches(Regex("[.,?!;:/()\\[\\]{}<>@%*+-]\\s*"))) {
                     commitCurrent()
                     ic.commitText(s, 1)
                 } else {
@@ -116,11 +153,25 @@ class ZirkimakoService : InputMethodService() {
 
     private fun performMutation() {
         val word = composingWord.toString()
-        val lastC = getLC(word)
-        val target = mutationMap[lastC] ?: return
-        val idx = word.lastIndexOf(lastC)
+        val lastCWithCase = getLC(word)
+        if (lastCWithCase.isEmpty()) return
+
+        val lastCLower = lastCWithCase.lowercase()
+        val targetLower = mutationMap[lastCLower] ?: return
+
+        // Preserve case:
+        // 1. If original was all uppercase, make target all uppercase
+        // 2. If original was titlecase (first char upper), make target titlecase
+        // 3. Otherwise, use lowercase target
+        val targetWithCase = when {
+            lastCWithCase.all { it.isUpperCase() } -> targetLower.uppercase()
+            lastCWithCase[0].isUpperCase() -> targetLower.replaceFirstChar { it.uppercase() }
+            else -> targetLower
+        }
+
+        val idx = word.lastIndexOf(lastCWithCase)
         if (idx != -1) {
-            composingWord.replace(idx, idx + lastC.length, target)
+            composingWord.replace(idx, idx + lastCWithCase.length, targetWithCase)
             updateUI()
         }
     }
@@ -128,11 +179,11 @@ class ZirkimakoService : InputMethodService() {
     private fun getLC(w: String): String {
         val motz = w.replace("[aeiouAEIOU]+$".toRegex(), "")
         if (motz.length >= 2) {
-            val l2 = motz.takeLast(2).lowercase()
-            if (l2 in listOf("tz", "tx", "ts", "rr")) return l2
+            val l2 = motz.takeLast(2)
+            if (l2.lowercase() in listOf("tz", "tx", "ts", "rr")) return l2
         }
-        val l1 = motz.takeLast(1).lowercase()
-        return if (l1 in mutationMap) l1 else ""
+        val l1 = motz.takeLast(1)
+        return if (l1.lowercase() in mutationMap) l1 else ""
     }
 
     enum class KeyboardMode { LOWER, UPPER, NUM }
@@ -162,12 +213,14 @@ class ZirkimakoService : InputMethodService() {
         val capsMode = ic.getCursorCapsMode(info.inputType)
         val shouldCapitalize = (capsMode and (TextUtils.CAP_MODE_SENTENCES or TextUtils.CAP_MODE_CHARACTERS or TextUtils.CAP_MODE_WORDS)) != 0
 
-        if (composingWord.isEmpty()) {
-            if (shouldCapitalize && currentMode != KeyboardMode.UPPER) {
-                currentMode = KeyboardMode.UPPER
+        if (composingWord.isEmpty() && currentMode != KeyboardMode.NUM) {
+            if (shouldCapitalize && !nextShifted) {
+                nextShifted = true
                 refreshKeyboardModeUI()
-            } else if (!shouldCapitalize && currentMode == KeyboardMode.UPPER) {
-                currentMode = KeyboardMode.LOWER
+            } else if (!shouldCapitalize && nextShifted && currentMode != KeyboardMode.UPPER) {
+                // If the system says we shouldn't capitalize, and we are shifted but NOT in full UPPER mode,
+                // then we should turn off shift.
+                nextShifted = false
                 refreshKeyboardModeUI()
             }
         }
@@ -175,6 +228,8 @@ class ZirkimakoService : InputMethodService() {
 
     private fun refreshKeyboardModeUI() {
         keyboardView.isUppercase = (currentMode == KeyboardMode.UPPER)
+        keyboardView.isShifted = nextShifted
+        keyboardView.layoutMap = if (currentMode == KeyboardMode.NUM) numLayout else basqueLayout
         keyboardView.modeLabel = when(currentMode) {
             KeyboardMode.LOWER -> getString(R.string.mode_lower)
             KeyboardMode.UPPER -> getString(R.string.mode_upper)
@@ -204,7 +259,8 @@ class ZirkimakoService : InputMethodService() {
         
         val lastC = getLC(composingWord.toString())
         keyboardView.swapLabel = if (lastC.isNotEmpty()) {
-            getString(R.string.swap_indicator_format, lastC, mutationMap[lastC])
+            val lastCLower = lastC.lowercase()
+            getString(R.string.swap_indicator_format, lastCLower, mutationMap[lastCLower])
         } else {
             getString(R.string.label_swap)
         }
@@ -215,6 +271,7 @@ class ZirkimakoService : InputMethodService() {
         if (composingWord.isNotEmpty()) { 
             currentInputConnection?.commitText(composingWord.toString(), 1)
             composingWord.clear()
+            nextShifted = false
             updateUI()
             updateCapsMode() // Check for caps after committing (e.g., after a period)
         } 
@@ -224,6 +281,7 @@ class ZirkimakoService : InputMethodService() {
         if (w.isNotEmpty()) { 
             currentInputConnection?.commitText(getString(R.string.word_with_space_format, w), 1)
             composingWord.clear()
+            nextShifted = false
             updateUI()
             updateCapsMode() // Check for caps after committing a word
         } 
@@ -237,15 +295,21 @@ class ZirkimakoService : InputMethodService() {
             currentInputConnection?.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DEL))
             updateCapsMode() // Update caps if user deletes a period/space
         }
+        if (nextShifted && composingWord.isEmpty()) {
+             // If we backspace until the word is empty, we might need to re-evaluate shift state
+             // based on what's before the cursor. updateCapsMode() already called above handles this.
+        }
     }
 
     private fun cycleMode() {
         currentMode = when(currentMode) { KeyboardMode.LOWER -> KeyboardMode.UPPER; KeyboardMode.UPPER -> KeyboardMode.NUM; else -> KeyboardMode.LOWER }
+        nextShifted = false
         refreshKeyboardModeUI()
     }
 
     private fun getChar(r: Int, c: Int, d: FlickDirection): String? {
-        val k = basqueLayout[Pair(r,c)] ?: return null
+        val layout = if (currentMode == KeyboardMode.NUM) numLayout else basqueLayout
+        val k = layout[Pair(r,c)] ?: return null
         val charStr = when(d) { 
             FlickDirection.TAP -> k.tap
             FlickDirection.UP -> k.up
@@ -253,12 +317,20 @@ class ZirkimakoService : InputMethodService() {
             FlickDirection.LEFT -> k.left
             FlickDirection.DOWN -> k.down
             FlickDirection.UP_RIGHT -> k.ur
-            FlickDirection.DOWN_RIGHT -> k.down
+            FlickDirection.DOWN_RIGHT -> k.dr
             FlickDirection.DOWN_LEFT -> k.dl
-            FlickDirection.UP_LEFT -> k.up
-        }
+            FlickDirection.UP_LEFT -> k.ul
+        } ?: return null
         
-        // Apply uppercase if mode is UPPER
-        return if (currentMode == KeyboardMode.UPPER) charStr?.uppercase() else charStr
+        return when {
+            currentMode == KeyboardMode.UPPER -> charStr.uppercase()
+            nextShifted -> {
+                val res = charStr.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+                nextShifted = false
+                refreshKeyboardModeUI()
+                res
+            }
+            else -> charStr
+        }
     }
 }

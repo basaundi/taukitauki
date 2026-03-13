@@ -22,6 +22,7 @@ class ZirkimakoView(context: Context, attrs: AttributeSet?) : View(context, attr
     var modeLabel = context.getString(R.string.mode_lower)
     var swapLabel = context.getString(R.string.label_swap)
     var isUppercase = false
+    var isShifted = false
 
     private var pressedRow = -1
     private var pressedCol = -1
@@ -29,6 +30,7 @@ class ZirkimakoView(context: Context, attrs: AttributeSet?) : View(context, attr
     private val paintGrid = Paint().apply { strokeWidth = 2f; style = Paint.Style.STROKE; color = 0xFF333333.toInt() }
     private val paintHighlight = Paint().apply { style = Paint.Style.FILL; color = 0xFF444444.toInt() }
     private val paintSpecialKey = Paint().apply { style = Paint.Style.FILL; color = 0xFF222222.toInt() }
+    private val paintShiftKeyActive = Paint().apply { style = Paint.Style.FILL; color = 0xFF555555.toInt() }
     private val paintEnterKey = Paint().apply { style = Paint.Style.FILL; color = 0xFF1565C0.toInt() }
     private val paintCenterText = Paint().apply { textAlign = Paint.Align.CENTER; isFakeBoldText = true; color = Color.WHITE }
     private val paintFlickText = Paint().apply { textAlign = Paint.Align.CENTER; textSize = 26f; color = Color.LTGRAY }
@@ -75,6 +77,9 @@ class ZirkimakoView(context: Context, attrs: AttributeSet?) : View(context, attr
                 when {
                     r == 3 && c == 4 -> {
                         canvas.drawRect(left, top, left + cellWidth, top + cellHeight, paintEnterKey)
+                    }
+                    r == 2 && c == 0 -> {
+                        canvas.drawRect(left, top, left + cellWidth, top + cellHeight, if (isShifted) paintShiftKeyActive else paintSpecialKey)
                     }
                     (r == 0 && c == 4) || (r == 1 && c == 0) || (r == 1 && c == 4) || (r == 2 && c == 4) || (r == 3 && c == 0) || (r == 3 && c == 1) -> {
                         canvas.drawRect(left, top, left + cellWidth, top + cellHeight, paintSpecialKey)

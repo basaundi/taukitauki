@@ -1,23 +1,20 @@
 package eus.basaundi.zirkimako
 
+import android.inputmethodservice.InputMethodService
 import android.os.Handler
 import android.os.Looper
-import android.inputmethodservice.InputMethodService
+import android.text.TextUtils
 import android.view.KeyEvent
 import android.view.View
+import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.TextView
-import android.text.TextUtils
-import android.view.inputmethod.EditorInfo
-
+import java.util.concurrent.Executors
 
 class ZirkimakoService : InputMethodService() {
     private lateinit var keyboardView: ZirkimakoView
-    private lateinit var sug1: TextView
-    private lateinit var sug2: TextView
-    private lateinit var sug3: TextView
-    private lateinit var sug4: TextView
-    private lateinit var sug5: TextView
+    private lateinit var suggestions: List<TextView>
+    
     private var composingWord = StringBuilder()
     private var currentMode = KeyboardMode.LOWER
     private var nextShifted = false
@@ -31,74 +28,73 @@ class ZirkimakoService : InputMethodService() {
         "m" to "j", "j" to "m", "h" to "",
         "a" to "ha", "e" to "he", "i" to "hi", "o" to "ho", "u" to "hu", "ü" to "hü",
         "(" to ")", ")" to "(", "\"" to "'", "'" to "\"", "{" to "}", "}" to "{",
-        "<" to ">", ">" to "<", "[" to "]", "]" to "[", "/" to "\\", "\\" to "/",
+        "<" to ">", ">" to "<", "[" to "]", "]" to "[", "/" to "\\", "\\" to "/"
     )
 
     private lateinit var dbHelper: DictionaryDatabaseHelper
     private val uiHandler = Handler(Looper.getMainLooper())
+    // Use a single thread executor to prevent memory leaks from firing new threads every keystroke
+    private val dbExecutor = Executors.newSingleThreadExecutor() 
 
     private val basqueLayout = mapOf(
-        Pair(0,0) to FlickKey("(","[","{","<","\"",
-                              ur="/", dl="@", dr="&", ul="|"),
-        Pair(0,1) to FlickKey("a","u","o","i","e",
-                              ur="ü", dr="h", dl="y", ul="w"),
-        Pair(0,2) to FlickKey("ka","ku","ko","ki","ke",
-                              ur="k", dr="c", dl="g", ul="q"),
-        Pair(0,3) to FlickKey("za","zu","zo","zi","ze",
-                              ur="z", dl="tz", ul="ç"),
-
-        Pair(1,1) to FlickKey("ta","tu","to","ti","te",
-                              ur="t", dl="d"),
-        Pair(1,2) to FlickKey("na","nu","no","ni","ne",
-                              ur="n", dr="ñ", dl="l"),
-        Pair(1,3) to FlickKey("ba","bu","bo","bi","be",
-                              ur="b", dr="f", dl="p", ul="v"),
-
-        Pair(2,0) to FlickKey("⇧"),
-
-        Pair(2,1) to FlickKey("ma","mu","mo","mi","me",
-                              ur="m", dl="j"),
-        Pair(2,2) to FlickKey("sa","su","so","si","se",
-                               ur="s", dl="tz"),
-        Pair(2,3) to FlickKey("ra","ru","ro","ri","re",
-                              ur="r", dl="h"),
-
-        Pair(3,2) to FlickKey("xa","xu","xo","xi","xe",
-                              ur="x", dl="tx"),
-        Pair(3,3) to FlickKey(", ","? ",". ","-","! ",
-                              ur="@", ul="%", dr="*", dl="+")
+        Pair(0, 0) to FlickKey("(", "[", "{", "<", "\"", ur = "/", dl = "@", dr = "&", ul = "|"),
+        Pair(0, 1) to FlickKey("a", "u", "o", "i", "e", ur = "ü", dr = "h", dl = "y", ul = "w"),
+        Pair(0, 2) to FlickKey("ka", "ku", "ko", "ki", "ke", ur = "k", dr = "c", dl = "g", ul = "q"),
+        Pair(0, 3) to FlickKey("za", "zu", "zo", "zi", "ze", ur = "z", dl = "tz", ul = "ç"),
+        Pair(1, 1) to FlickKey("ta", "tu", "to", "ti", "te", ur = "t", dl = "d"),
+        Pair(1, 2) to FlickKey("na", "nu", "no", "ni", "ne", ur = "n", dr = "ñ", dl = "l"),
+        Pair(1, 3) to FlickKey("ba", "bu", "bo", "bi", "be", ur = "b", dr = "f", dl = "p", ul = "v"),
+        Pair(2, 0) to FlickKey("⇧"),
+        Pair(2, 1) to FlickKey("ma", "mu", "mo", "mi", "me", ur = "m", dl = "j"),
+        Pair(2, 2) to FlickKey("sa", "su", "so", "si", "se", ur = "s", dl = "tz"),
+        Pair(2, 3) to FlickKey("ra", "ru", "ro", "ri", "re", ur = "r", dl = "h"),
+        Pair(3, 2) to FlickKey("xa", "xu", "xo", "xi", "xe", ur = "x", dl = "tx"),
+        Pair(3, 3) to FlickKey(", ", "? ", ". ", "-", "! ", ur = "@", ul = "%", dr = "*", dl = "+")
     )
 
     private val numLayout = mapOf(
-        Pair(0,1) to FlickKey("1"),
-        Pair(0,2) to FlickKey("2"),
-        Pair(0,3) to FlickKey("3"),
-        Pair(1,1) to FlickKey("4"),
-        Pair(1,2) to FlickKey("5"),
-        Pair(1,3) to FlickKey("6"),
-        Pair(2,1) to FlickKey("7"),
-        Pair(2,2) to FlickKey("8"),
-        Pair(2,3) to FlickKey("9"),
-        Pair(3,2) to FlickKey("0"),
-        Pair(3,3) to FlickKey(".", ",", ":", ";", "/",
-                              ul="(", ur=")", dl="[", dr="]")
+        Pair(0, 1) to FlickKey("1"), Pair(0, 2) to FlickKey("2"), Pair(0, 3) to FlickKey("3"),
+        Pair(1, 1) to FlickKey("4"), Pair(1, 2) to FlickKey("5"), Pair(1, 3) to FlickKey("6"),
+        Pair(2, 1) to FlickKey("7"), Pair(2, 2) to FlickKey("8"), Pair(2, 3) to FlickKey("9"),
+        Pair(3, 2) to FlickKey("0"),
+        Pair(3, 3) to FlickKey(".", ",", ":", ";", "/", ul = "(", ur = ")", dl = "[", dr = "]")
     )
+
+    enum class KeyboardMode { LOWER, UPPER, NUM }
+
+    override fun onCreate() {
+        super.onCreate()
+        dbHelper = DictionaryDatabaseHelper(this)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        dbExecutor.shutdown()
+    }
 
     override fun onCreateInputView(): View {
         val root = layoutInflater.inflate(R.layout.keyboard_layout, null)
         keyboardView = root.findViewById(R.id.zirkimako_keyboard_view)
-        sug1 = root.findViewById(R.id.sug1)
-        sug2 = root.findViewById(R.id.sug2)
-        sug3 = root.findViewById(R.id.sug3)
-        sug4 = root.findViewById(R.id.sug4)
-        sug5 = root.findViewById(R.id.sug5)
+        
+        // Grouping suggestion text views into a clean list
+        suggestions = listOf(
+            root.findViewById(R.id.sug1),
+            root.findViewById(R.id.sug2),
+            root.findViewById(R.id.sug3),
+            root.findViewById(R.id.sug4),
+            root.findViewById(R.id.sug5)
+        )
         
         keyboardView.layoutMap = basqueLayout
         keyboardView.keyActionListener = { r, c, d -> handleAction(r, c, d) }
         keyboardView.backspaceListener = { handleBackspace() }
-        keyboardView.longPressListener = { r, c -> if (r==2 && c==4) (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).showInputMethodPicker() }
+        keyboardView.longPressListener = { r, c -> 
+            if (r == 2 && c == 4) {
+                (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).showInputMethodPicker()
+            }
+        }
         
-        val sL = View.OnClickListener { v -> 
+        val suggestionListener = View.OnClickListener { v -> 
             val suggestion = (v as TextView).text.toString()
             if (suggestion.isNotEmpty()) {
                 val formatted = when {
@@ -109,45 +105,38 @@ class ZirkimakoService : InputMethodService() {
                 commitWord("$formatted ")
             }
         }
-        sug1.setOnClickListener(sL)
-        sug2.setOnClickListener(sL)
-        sug3.setOnClickListener(sL)
-        sug4.setOnClickListener(sL)
-        sug5.setOnClickListener(sL)
+        
+        suggestions.forEach { it.setOnClickListener(suggestionListener) }
         
         return root
     }
 
     private fun handleAction(r: Int, c: Int, d: FlickDirection) {
         val ic = currentInputConnection ?: return
+
         when {
-            // shift (2,0)
-            r == 2 && c == 0 -> {
+            r == 2 && c == 0 -> { // shift
                 if (currentMode != KeyboardMode.NUM) {
                     nextShifted = !nextShifted
                     refreshKeyboardModeUI()
                 }
             }
-            // <- arrow
-            r == 1 && c == 0 -> { commitCurrent(); ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_LEFT)) }
-            // -> arrow
-            r == 1 && c == 4 -> { commitCurrent(); ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_RIGHT)) }
-            // _ space
-            r == 2 && c == 4 -> { commitCurrent(); ic.commitText(" ", 1) }
-            // enter
-            r == 3 && c == 4 -> { commitCurrent(); ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER)) }
-
-            // lowercase - uppercase - numpad
-            r == 3 && c == 0 -> cycleMode()
-            // mutate consonant
-            r == 3 && c == 1 -> performMutation()
+            r == 1 && c == 0 -> { commitCurrent(); ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_LEFT)) } // <- arrow
+            r == 1 && c == 4 -> { commitCurrent(); ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_RIGHT)) } // -> arrow
+            r == 2 && c == 4 -> { commitCurrent(); ic.commitText(" ", 1) } // _ space
+            r == 3 && c == 4 -> { commitCurrent(); ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER)) } // enter
+            r == 3 && c == 0 -> cycleMode() // lowercase - uppercase - numpad
+            r == 3 && c == 1 -> performMutation() // mutate consonant
             else -> {
                 val s = getChar(r, c, d) ?: return
-                if (s.matches(Regex("[.,?!;:/()\\[\\]{}<>@%*+-]\\s*"))) {
+
+                // BUG FIX: If it's a non-letter (punctuation, number), commit it IMMEDIATELY.
+                if (!s.any { it.isLetter() }) {
                     commitCurrent()
                     ic.commitText(s, 1)
-                    lastInput = ""
+                    updateCapsMode()
                 } else {
+                    // It's a letter, keep composing.
                     composingWord.append(s)
                     lastInput = s
                     updateUI()
@@ -156,50 +145,44 @@ class ZirkimakoService : InputMethodService() {
         }
     }
 
-    private fun performMutation() {
-        if (lastInput.isEmpty()) return
+    // --- Extracted logic to keep mutation DRY ---
+    private fun getMutationTarget(input: String): String? {
+        if (input.isEmpty()) return null
         
-        var searchKey = lastInput.lowercase()
+        val searchKey = input.lowercase()
         var targetLower = mutationMap[searchKey]
         var vowel = ""
         
         if (targetLower == null) {
             val vowelRegex = "[aeiouüAEIOUÜ]$".toRegex()
-            val match = vowelRegex.find(lastInput)
+            val match = vowelRegex.find(input)
             if (match != null) {
                 vowel = match.value
-                searchKey = lastInput.substring(0, lastInput.length - vowel.length).lowercase()
-                targetLower = mutationMap[searchKey]
+                val stripped = input.substring(0, input.length - vowel.length).lowercase()
+                targetLower = mutationMap[stripped]
             }
         }
         
-        if (targetLower == null) {
-            return
-        }
+        if (targetLower == null) return null
 
-        var targetWithCase = when {
-            lastInput.all { it.isUpperCase() } -> targetLower.uppercase()
-            lastInput[0].isUpperCase() -> targetLower.replaceFirstChar { it.uppercase() }
+        val targetWithCase = when {
+            input.all { it.isUpperCase() } -> targetLower.uppercase()
+            input[0].isUpperCase() -> targetLower.replaceFirstChar { it.uppercase() }
             else -> targetLower
         }
         
-        if (vowel.isNotEmpty()) {
-            targetWithCase += vowel
-        }
-
-        val idx = composingWord.lastIndexOf(lastInput)
-        if (idx != -1) {
-            composingWord.replace(idx, idx + lastInput.length, targetWithCase)
-            lastInput = targetWithCase
-            updateUI()
-        }
+        return targetWithCase + vowel
     }
 
-    enum class KeyboardMode { LOWER, UPPER, NUM }
-
-    override fun onCreate() {
-        super.onCreate()
-        dbHelper = DictionaryDatabaseHelper(this)
+    private fun performMutation() {
+        val mutated = getMutationTarget(lastInput) ?: return
+        val idx = composingWord.lastIndexOf(lastInput)
+        
+        if (idx != -1) {
+            composingWord.replace(idx, idx + lastInput.length, mutated)
+            lastInput = mutated
+            updateUI()
+        }
     }
 
     override fun onStartInput(attribute: EditorInfo?, restarting: Boolean) {
@@ -225,13 +208,11 @@ class ZirkimakoService : InputMethodService() {
 
     override fun onUpdateSelection(oldSelStart: Int, oldSelEnd: Int, newSelStart: Int, newSelEnd: Int, candidatesStart: Int, candidatesEnd: Int) {
         super.onUpdateSelection(oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd)
-
         if (composingWord.isNotEmpty() && candidatesStart == -1 && candidatesEnd == -1) {
             composingWord.setLength(0)
             lastInput = ""
             updateUI()
         }
-
         updateCapsMode()
     }
 
@@ -271,44 +252,28 @@ class ZirkimakoService : InputMethodService() {
         val word = composingWord.toString()
         ic.setComposingText(word, 1)
         
-        Thread {
+        // PERFORMANCE FIX: Executing DB calls on a reusable thread rather than a new one per keystroke
+        dbExecutor.execute {
             val searchPrefix = word.lowercase()
             val preds = dbHelper.getSuggestions(searchPrefix)
             uiHandler.post {
-                if(composingWord.toString() == word){
-                    sug1.text = preds.getOrNull(0) ?: ""
-                    sug2.text = preds.getOrNull(1) ?: ""
-                    sug3.text = preds.getOrNull(2) ?: ""
-                    sug4.text = preds.getOrNull(3) ?: ""
-                    sug5.text = preds.getOrNull(4) ?: ""
-            }
-        }
-        }.start()
-        
-        if (!::keyboardView.isInitialized) return
-        keyboardView.swapLabel = if (lastInput.isNotEmpty()) {
-            val lastInputLower = lastInput.lowercase()
-            var target = mutationMap[lastInputLower]
-            var vowel = ""
-            if (target == null) {
-                val vowelRegex = "[aeiouüAEIOUÜ]$".toRegex()
-                val match = vowelRegex.find(lastInput)
-                if (match != null) {
-                    vowel = match.value
-                    val stripped = lastInput.substring(0, lastInput.length - vowel.length).lowercase()
-                    target = mutationMap[stripped]
+                if (composingWord.toString() == word) {
+                    suggestions.forEachIndexed { index, textView -> 
+                        textView.text = preds.getOrNull(index) ?: ""
+                    }
                 }
             }
-
-            if (target != null) {
-                val displayTarget = if (vowel.isNotEmpty()) target + vowel else target
-                getString(R.string.swap_indicator_format, lastInputLower, displayTarget)
-            } else {
-                getString(R.string.label_swap)
-            }
+        }
+        
+        if (!::keyboardView.isInitialized) return
+        
+        val mutated = getMutationTarget(lastInput)
+        keyboardView.swapLabel = if (mutated != null) {
+            getString(R.string.swap_indicator_format, lastInput.lowercase(), mutated)
         } else {
             getString(R.string.label_swap)
         }
+        
         keyboardView.invalidate()
     }
 
@@ -337,7 +302,7 @@ class ZirkimakoService : InputMethodService() {
     private fun handleBackspace() {
         if (composingWord.isNotEmpty()) { 
             composingWord.deleteCharAt(composingWord.length - 1)
-            lastInput = "" // We don't track what was before for now after backspace
+            lastInput = "" 
             updateUI() 
         } else {
             currentInputConnection?.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DEL))
@@ -346,7 +311,11 @@ class ZirkimakoService : InputMethodService() {
     }
 
     private fun cycleMode() {
-        currentMode = when(currentMode) { KeyboardMode.LOWER -> KeyboardMode.UPPER; KeyboardMode.UPPER -> KeyboardMode.NUM; else -> KeyboardMode.LOWER }
+        currentMode = when(currentMode) { 
+            KeyboardMode.LOWER -> KeyboardMode.UPPER
+            KeyboardMode.UPPER -> KeyboardMode.NUM
+            else -> KeyboardMode.LOWER 
+        }
         nextShifted = false
         refreshKeyboardModeUI()
     }

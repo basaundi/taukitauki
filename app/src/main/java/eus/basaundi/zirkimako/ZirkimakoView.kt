@@ -18,7 +18,20 @@ class ZirkimakoView(context: Context, attrs: AttributeSet?) : View(context, attr
     private var cellWidth = 0f
     private var cellHeight = 0f
     
+    // We intercept the layoutMap setter to populate a 1D array for lightning-fast, 
+    // zero-allocation lookups during onDraw()
+    private val fastKeyLookup = Array<FlickKey?>(rows * cols) { null }
     var layoutMap: Map<Pair<Int, Int>, FlickKey> = emptyMap()
+        set(value) {
+            field = value
+            for (r in 0 until rows) {
+                for (c in 0 until cols) {
+                    fastKeyLookup[r * cols + c] = value[Pair(r, c)]
+                }
+            }
+            invalidate()
+        }
+
     var modeLabel = context.getString(R.string.mode_lower)
     var swapLabel = context.getString(R.string.label_swap)
     var isUppercase = false
@@ -103,9 +116,10 @@ class ZirkimakoView(context: Context, attrs: AttributeSet?) : View(context, attr
                 }
 
                 if (specialLabel != null) {
-                    canvas.drawText(specialLabel, left + cellWidth / 2, top + cellHeight / 2 + (paintCenterText.textSize/3), paintCenterText)
+                    canvas.drawText(specialLabel, left + cellWidth / 2, top + cellHeight / 2 + (paintCenterText.textSize / 3), paintCenterText)
                 } else {
-                    layoutMap[Pair(r, c)]?.let { drawKeyLabels(canvas, it, left, top) }
+                    // Pulling from the flat array directly to avoid generating Map key Pairs
+                    fastKeyLookup[r * cols + c]?.let { drawKeyLabels(canvas, it, left, top) }
                 }
             }
         }
@@ -151,7 +165,8 @@ class ZirkimakoView(context: Context, attrs: AttributeSet?) : View(context, attr
                 repeatHandler.removeCallbacks(repeatRunnable)
                 if (!(pressedRow == 0 && pressedCol == 4) && pressedRow != -1) {
                     val dist = hypot((event.x - startX).toDouble(), (event.y - startY).toDouble())
-                    val key = layoutMap[Pair(pressedRow, pressedCol)]
+                    // Look up via array index to prevent allocation
+                    val key = fastKeyLookup[pressedRow * cols + pressedCol]
                     val dir = if (dist < 40f) FlickDirection.TAP else calculateDir(startX, startY, event.x, event.y, key?.is8Way ?: false)
                     keyActionListener?.invoke(pressedRow, pressedCol, dir)
                 }

@@ -9,10 +9,10 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.TextView
 import android.text.TextUtils
 import android.view.inputmethod.EditorInfo
+import android.util.Log
 
 
 class ZirkimakoService : InputMethodService() {
-
     private lateinit var keyboardView: ZirkimakoView
     private lateinit var sug1: TextView
     private lateinit var sug2: TextView
@@ -22,13 +22,15 @@ class ZirkimakoService : InputMethodService() {
     private var composingWord = StringBuilder()
     private var currentMode = KeyboardMode.LOWER
     private var nextShifted = false
+    private var lastInput: String = ""
 
     private val mutationMap = mapOf(
         "k" to "g", "g" to "k", "z" to "tz", "tz" to "z",
         "t" to "d", "d" to "t", "n" to "l", "l" to "n",
         "p" to "b", "b" to "p", "s" to "ts", "ts" to "s",
         "x" to "tx", "tx" to "x", "r" to "rr", "rr" to "r",
-        "m" to "j", "j" to "m",
+        "m" to "j", "j" to "m", "h" to "",
+        "a" to "ha", "e" to "he", "i" to "hi", "o" to "ho", "u" to "hu", "ü" to "hü",
     )
 
     private lateinit var dbHelper: DictionaryDatabaseHelper
@@ -78,7 +80,7 @@ class ZirkimakoService : InputMethodService() {
         Pair(2,3) to FlickKey("9"),
         Pair(3,2) to FlickKey("0"),
         Pair(3,3) to FlickKey(".", ",", ":", ";", "/",
-                              ul="(", ur=")", dl="[", dr="]") //, up="<", down=">", left="{", right="}")
+                              ul="(", ur=")", dl="[", dr="]")
     )
 
     override fun onCreateInputView(): View {
@@ -143,8 +145,12 @@ class ZirkimakoService : InputMethodService() {
                 if (s.matches(Regex("[.,?!;:/()\\[\\]{}<>@%*+-]\\s*"))) {
                     commitCurrent()
                     ic.commitText(s, 1)
+                    lastInput = ""
+                    Log.d("ZirkimakoService", "ZirkimakoService.kt:132 - lastInput cleared (punct): $s")
                 } else {
                     composingWord.append(s)
+                    lastInput = s
+                    Log.d("ZirkimakoService", "ZirkimakoService.kt:136 - lastInput set: $lastInput")
                     updateUI()
                 }
             }
@@ -152,38 +158,47 @@ class ZirkimakoService : InputMethodService() {
     }
 
     private fun performMutation() {
-        val word = composingWord.toString()
-        val lastCWithCase = getLC(word)
-        if (lastCWithCase.isEmpty()) return
+        Log.d("ZirkimakoService", "ZirkimakoService.kt:143 - performMutation entry. lastInput: $lastInput")
+        if (lastInput.isEmpty()) return
+        
+        var searchKey = lastInput.lowercase()
+        var targetLower = mutationMap[searchKey]
+        var vowel = ""
+        
+        if (targetLower == null) {
+            val vowelRegex = "[aeiouüAEIOUÜ]$".toRegex()
+            val match = vowelRegex.find(lastInput)
+            if (match != null) {
+                vowel = match.value
+                searchKey = lastInput.substring(0, lastInput.length - vowel.length).lowercase()
+                targetLower = mutationMap[searchKey]
+                Log.d("ZirkimakoService", "ZirkimakoService.kt:157 - Vowel stripped: '$vowel', searchKey: '$searchKey', target: '$targetLower'")
+            }
+        }
+        
+        if (targetLower == null) {
+            Log.d("ZirkimakoService", "ZirkimakoService.kt:162 - No mutation found for '$lastInput'")
+            return
+        }
 
-        val lastCLower = lastCWithCase.lowercase()
-        val targetLower = mutationMap[lastCLower] ?: return
-
-        // Preserve case:
-        // 1. If original was all uppercase, make target all uppercase
-        // 2. If original was titlecase (first char upper), make target titlecase
-        // 3. Otherwise, use lowercase target
-        val targetWithCase = when {
-            lastCWithCase.all { it.isUpperCase() } -> targetLower.uppercase()
-            lastCWithCase[0].isUpperCase() -> targetLower.replaceFirstChar { it.uppercase() }
+        var targetWithCase = when {
+            lastInput.all { it.isUpperCase() } -> targetLower.uppercase()
+            lastInput[0].isUpperCase() -> targetLower.replaceFirstChar { it.uppercase() }
             else -> targetLower
         }
+        
+        if (vowel.isNotEmpty()) {
+            targetWithCase += vowel
+        }
 
-        val idx = word.lastIndexOf(lastCWithCase)
+        val idx = composingWord.lastIndexOf(lastInput)
+        Log.d("ZirkimakoService", "ZirkimakoService.kt:177 - replacing '$lastInput' at $idx in '$composingWord' with '$targetWithCase'")
         if (idx != -1) {
-            composingWord.replace(idx, idx + lastCWithCase.length, targetWithCase)
+            composingWord.replace(idx, idx + lastInput.length, targetWithCase)
+            lastInput = targetWithCase
+            Log.d("ZirkimakoService", "ZirkimakoService.kt:181 - Mutation success. composingWord: $composingWord")
             updateUI()
         }
-    }
-
-    private fun getLC(w: String): String {
-        val motz = w.replace("[aeiouAEIOU]+$".toRegex(), "")
-        if (motz.length >= 2) {
-            val l2 = motz.takeLast(2)
-            if (l2.lowercase() in listOf("tz", "tx", "ts", "rr")) return l2
-        }
-        val l1 = motz.takeLast(1)
-        return if (l1.lowercase() in mutationMap) l1 else ""
     }
 
     enum class KeyboardMode { LOWER, UPPER, NUM }
@@ -193,15 +208,36 @@ class ZirkimakoService : InputMethodService() {
         dbHelper = DictionaryDatabaseHelper(this)
     }
 
-    // Auto-capitalization trigger when input view starts
+    override fun onStartInput(attribute: EditorInfo?, restarting: Boolean) {
+        super.onStartInput(attribute, restarting)
+        if (!restarting) {
+            composingWord.setLength(0)
+            lastInput = ""
+            updateUI()
+        }
+    }
+
+    override fun onFinishInput() {
+        super.onFinishInput()
+        composingWord.setLength(0)
+        lastInput = ""
+        updateUI()
+    }
+
     override fun onStartInputView(info: EditorInfo, restarting: Boolean) {
         super.onStartInputView(info, restarting)
         updateCapsMode()
     }
 
-    // Auto-capitalization trigger when cursor moves or text changes externally
     override fun onUpdateSelection(oldSelStart: Int, oldSelEnd: Int, newSelStart: Int, newSelEnd: Int, candidatesStart: Int, candidatesEnd: Int) {
         super.onUpdateSelection(oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd)
+
+        if (composingWord.isNotEmpty() && candidatesStart == -1 && candidatesEnd == -1) {
+            composingWord.setLength(0)
+            lastInput = ""
+            updateUI()
+        }
+
         updateCapsMode()
     }
 
@@ -209,7 +245,6 @@ class ZirkimakoService : InputMethodService() {
         val ic = currentInputConnection ?: return
         val info = currentInputEditorInfo ?: return
         
-        // Check if Android's input system thinks we should capitalize based on the cursor position
         val capsMode = ic.getCursorCapsMode(info.inputType)
         val shouldCapitalize = (capsMode and (TextUtils.CAP_MODE_SENTENCES or TextUtils.CAP_MODE_CHARACTERS or TextUtils.CAP_MODE_WORDS)) != 0
 
@@ -218,8 +253,6 @@ class ZirkimakoService : InputMethodService() {
                 nextShifted = true
                 refreshKeyboardModeUI()
             } else if (!shouldCapitalize && nextShifted && currentMode != KeyboardMode.UPPER) {
-                // If the system says we shouldn't capitalize, and we are shifted but NOT in full UPPER mode,
-                // then we should turn off shift.
                 nextShifted = false
                 refreshKeyboardModeUI()
             }
@@ -227,6 +260,7 @@ class ZirkimakoService : InputMethodService() {
     }
 
     private fun refreshKeyboardModeUI() {
+        if (!::keyboardView.isInitialized) return
         keyboardView.isUppercase = (currentMode == KeyboardMode.UPPER)
         keyboardView.isShifted = nextShifted
         keyboardView.layoutMap = if (currentMode == KeyboardMode.NUM) numLayout else basqueLayout
@@ -257,10 +291,27 @@ class ZirkimakoService : InputMethodService() {
         }
         }.start()
         
-        val lastC = getLC(composingWord.toString())
-        keyboardView.swapLabel = if (lastC.isNotEmpty()) {
-            val lastCLower = lastC.lowercase()
-            getString(R.string.swap_indicator_format, lastCLower, mutationMap[lastCLower])
+        if (!::keyboardView.isInitialized) return
+        keyboardView.swapLabel = if (lastInput.isNotEmpty()) {
+            val lastInputLower = lastInput.lowercase()
+            var target = mutationMap[lastInputLower]
+            var vowel = ""
+            if (target == null) {
+                val vowelRegex = "[aeiouüAEIOUÜ]$".toRegex()
+                val match = vowelRegex.find(lastInput)
+                if (match != null) {
+                    vowel = match.value
+                    val stripped = lastInput.substring(0, lastInput.length - vowel.length).lowercase()
+                    target = mutationMap[stripped]
+                }
+            }
+
+            if (target != null) {
+                val displayTarget = if (vowel.isNotEmpty()) target + vowel else target
+                getString(R.string.swap_indicator_format, lastInputLower, displayTarget)
+            } else {
+                getString(R.string.label_swap)
+            }
         } else {
             getString(R.string.label_swap)
         }
@@ -270,34 +321,33 @@ class ZirkimakoService : InputMethodService() {
     private fun commitCurrent() { 
         if (composingWord.isNotEmpty()) { 
             currentInputConnection?.commitText(composingWord.toString(), 1)
-            composingWord.clear()
+            composingWord.setLength(0)
+            lastInput = ""
             nextShifted = false
             updateUI()
-            updateCapsMode() // Check for caps after committing (e.g., after a period)
+            updateCapsMode()
         } 
     }
     
     private fun commitWord(w: String) { 
         if (w.isNotEmpty()) { 
             currentInputConnection?.commitText(getString(R.string.word_with_space_format, w), 1)
-            composingWord.clear()
+            composingWord.setLength(0)
+            lastInput = ""
             nextShifted = false
             updateUI()
-            updateCapsMode() // Check for caps after committing a word
+            updateCapsMode()
         } 
     }
 
     private fun handleBackspace() {
         if (composingWord.isNotEmpty()) { 
             composingWord.deleteCharAt(composingWord.length - 1)
+            lastInput = "" // We don't track what was before for now after backspace
             updateUI() 
         } else {
             currentInputConnection?.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DEL))
-            updateCapsMode() // Update caps if user deletes a period/space
-        }
-        if (nextShifted && composingWord.isEmpty()) {
-             // If we backspace until the word is empty, we might need to re-evaluate shift state
-             // based on what's before the cursor. updateCapsMode() already called above handles this.
+            updateCapsMode()
         }
     }
 

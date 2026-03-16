@@ -121,27 +121,37 @@ class ZirkimakoService : InputMethodService() {
                     refreshKeyboardModeUI()
                 }
             }
-            r == 1 && c == 0 -> { commitCurrent(); ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_LEFT)) } // <- arrow
-            r == 1 && c == 4 -> { commitCurrent(); ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_RIGHT)) } // -> arrow
-            r == 2 && c == 4 -> { commitCurrent(); ic.commitText(" ", 1) } // _ space
-            r == 3 && c == 4 -> { commitCurrent(); ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER)) } // enter
-            r == 3 && c == 0 -> cycleMode() // lowercase - uppercase - numpad
-            r == 3 && c == 1 -> performMutation() // mutate consonant
+            r == 1 && c == 0 -> { commitCurrent(); ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_LEFT)); updateCapsMode() }
+            r == 1 && c == 4 -> { commitCurrent(); ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_RIGHT)); updateCapsMode() }
+            r == 2 && c == 4 -> { commitCurrent(); ic.commitText(" ", 1); updateCapsMode() }
+            r == 3 && c == 4 -> { commitCurrent(); ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER)); updateCapsMode() }
+            r == 3 && c == 0 -> cycleMode()
+            r == 3 && c == 1 -> performMutation()
             else -> {
                 val s = getChar(r, c, d) ?: return
-
-                // BUG FIX: If it's a non-letter (punctuation, number), commit it IMMEDIATELY.
+                val ic = currentInputConnection ?: return
+                ic.beginBatchEdit()
                 if (!s.any { it.isLetter() }) {
                     commitCurrent()
-                    ic.commitText(s, 1)
-                    updateCapsMode()
                 } else {
-                    // It's a letter, keep composing.
-                    composingWord.append(s)
-                    lastInput = s
-                    updateUI()
+                    if (composingWord.isNotEmpty() && !composingWord.any { it.isLetter() }) {
+                        commitCurrent()
+                    }
                 }
+                composingWord.append(s)
+                lastInput = s
+                updateUI()
+                ic.endBatchEdit()
             }
+        }
+    }
+
+    private fun commitCurrent() {
+        if (composingWord.isNotEmpty()) {
+            currentInputConnection?.commitText(composingWord.toString(), 1)
+            composingWord.setLength(0)
+            lastInput = ""
+            nextShifted = false
         }
     }
 
@@ -187,11 +197,9 @@ class ZirkimakoService : InputMethodService() {
 
     override fun onStartInput(attribute: EditorInfo?, restarting: Boolean) {
         super.onStartInput(attribute, restarting)
-        if (!restarting) {
-            composingWord.setLength(0)
-            lastInput = ""
-            updateUI()
-        }
+        composingWord.setLength(0)
+        lastInput = ""
+        updateUI()
     }
 
     override fun onFinishInput() {
@@ -275,17 +283,6 @@ class ZirkimakoService : InputMethodService() {
         }
         
         keyboardView.invalidate()
-    }
-
-    private fun commitCurrent() { 
-        if (composingWord.isNotEmpty()) { 
-            currentInputConnection?.commitText(composingWord.toString(), 1)
-            composingWord.setLength(0)
-            lastInput = ""
-            nextShifted = false
-            updateUI()
-            updateCapsMode()
-        } 
     }
     
     private fun commitWord(w: String) { 

@@ -1,5 +1,7 @@
 package eus.basaundi.zirkimako
 
+import android.content.ClipboardManager
+import android.content.Context
 import android.inputmethodservice.InputMethodService
 import android.os.Handler
 import android.os.Looper
@@ -14,6 +16,8 @@ import java.util.concurrent.Executors
 class ZirkimakoService : InputMethodService() {
     private lateinit var keyboardView: ZirkimakoView
     private lateinit var suggestions: List<TextView>
+    private lateinit var pasteButton: View
+    private lateinit var clipboardManager: ClipboardManager
     
     private var composingWord = StringBuilder()
     private var currentMode = KeyboardMode.LOWER
@@ -35,6 +39,10 @@ class ZirkimakoService : InputMethodService() {
     private val uiHandler = Handler(Looper.getMainLooper())
     // Use a single thread executor to prevent memory leaks from firing new threads every keystroke
     private val dbExecutor = Executors.newSingleThreadExecutor() 
+
+    private val clipboardListener = ClipboardManager.OnPrimaryClipChangedListener {
+        updatePasteButtonVisibility()
+    }
 
     private val basqueLayout = mapOf(
         Pair(0, 0) to FlickKey("(", "[", "{", "<", "\"", ur = "/", dl = "@", dr = "&", ul = "|"),
@@ -65,11 +73,14 @@ class ZirkimakoService : InputMethodService() {
     override fun onCreate() {
         super.onCreate()
         dbHelper = DictionaryDatabaseHelper(this)
+        clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        clipboardManager.addPrimaryClipChangedListener(clipboardListener)
     }
 
     override fun onDestroy() {
         super.onDestroy()
         dbExecutor.shutdown()
+        clipboardManager.removePrimaryClipChangedListener(clipboardListener)
     }
 
     override fun onCreateInputView(): View {
@@ -84,6 +95,18 @@ class ZirkimakoService : InputMethodService() {
             root.findViewById(R.id.sug4),
             root.findViewById(R.id.sug5)
         )
+        
+        pasteButton = root.findViewById(R.id.btn_paste_or_suggest)
+        pasteButton.setOnClickListener {
+            val clip = clipboardManager.primaryClip
+            if (clip != null && clip.itemCount > 0) {
+                val text = clip.getItemAt(0).text
+                if (!text.isNullOrEmpty()) {
+                    commitCurrent()
+                    currentInputConnection?.commitText(text, 1)
+                }
+            }
+        }
         
         keyboardView.layoutMap = basqueLayout
         keyboardView.keyActionListener = { r, c, d -> handleAction(r, c, d) }
@@ -108,6 +131,8 @@ class ZirkimakoService : InputMethodService() {
         
         suggestions.forEach { it.setOnClickListener(suggestionListener) }
         
+        updatePasteButtonVisibility()
+        
         return root
     }
 
@@ -129,7 +154,6 @@ class ZirkimakoService : InputMethodService() {
             r == 3 && c == 1 -> performMutation()
             else -> {
                 val s = getChar(r, c, d) ?: return
-                val ic = currentInputConnection ?: return
                 ic.beginBatchEdit()
                 if (!s.any { it.isLetter() }) {
                     commitCurrent()
@@ -155,7 +179,6 @@ class ZirkimakoService : InputMethodService() {
         }
     }
 
-    // --- Extracted logic to keep mutation DRY ---
     private fun getMutationTarget(input: String): String? {
         if (input.isEmpty()) return null
         
@@ -212,6 +235,7 @@ class ZirkimakoService : InputMethodService() {
     override fun onStartInputView(info: EditorInfo, restarting: Boolean) {
         super.onStartInputView(info, restarting)
         updateCapsMode()
+        updatePasteButtonVisibility()
     }
 
     override fun onUpdateSelection(oldSelStart: Int, oldSelEnd: Int, newSelStart: Int, newSelEnd: Int, candidatesStart: Int, candidatesEnd: Int) {
@@ -260,7 +284,6 @@ class ZirkimakoService : InputMethodService() {
         val word = composingWord.toString()
         ic.setComposingText(word, 1)
         
-        // PERFORMANCE FIX: Executing DB calls on a reusable thread rather than a new one per keystroke
         dbExecutor.execute {
             val searchPrefix = word.lowercase()
             val preds = dbHelper.getSuggestions(searchPrefix)
@@ -342,5 +365,11 @@ class ZirkimakoService : InputMethodService() {
             }
             else -> charStr
         }
+    }
+
+    private fun updatePasteButtonVisibility() {
+        if (!::pasteButton.isInitialized) return
+        val hasClip = clipboardManager.hasPrimaryClip()
+        pasteButton.visibility = if (hasClip) View.VISIBLE else View.GONE
     }
 }

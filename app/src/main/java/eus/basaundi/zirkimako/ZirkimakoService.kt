@@ -38,7 +38,6 @@ class ZirkimakoService : InputMethodService() {
 
     private lateinit var dbHelper: DictionaryDatabaseHelper
     private val uiHandler = Handler(Looper.getMainLooper())
-    // Use a single thread executor to prevent memory leaks from firing new threads every keystroke
     private val dbExecutor = Executors.newSingleThreadExecutor() 
 
     private val clipboardListener = ClipboardManager.OnPrimaryClipChangedListener {
@@ -62,6 +61,7 @@ class ZirkimakoService : InputMethodService() {
     )
 
     private val numLayout = mapOf(
+        Pair(0, 0) to FlickKey("(", "[", "{", "<", "\"", ur = "/", dl = "@", dr = "&", ul = "|"),
         Pair(0, 1) to FlickKey("1"),
         Pair(0, 2) to FlickKey("2"),
         Pair(0, 3) to FlickKey("3"),
@@ -94,7 +94,6 @@ class ZirkimakoService : InputMethodService() {
         val root = layoutInflater.inflate(R.layout.keyboard_layout, null)
         keyboardView = root.findViewById(R.id.zirkimako_keyboard_view)
         
-        // Grouping suggestion text views into a clean list
         suggestions = listOf(
             root.findViewById(R.id.sug1),
             root.findViewById(R.id.sug2),
@@ -116,7 +115,7 @@ class ZirkimakoService : InputMethodService() {
         }
         
         keyboardView.layoutMap = basqueLayout
-        keyboardView.keyActionListener = { r, c, d -> handleAction(r, c, d) }
+        keyboardView.keyActionListener = { r, c, gesture -> handleAction(r, c, gesture) }
         keyboardView.backspaceListener = { handleBackspace() }
         keyboardView.longPressListener = { r, c -> 
             if (r == 2 && c == 4) {
@@ -143,7 +142,7 @@ class ZirkimakoService : InputMethodService() {
         return root
     }
 
-    private fun handleAction(r: Int, c: Int, d: FlickDirection) {
+    private fun handleAction(r: Int, c: Int, gesture: Gesture) {
         val ic = currentInputConnection ?: return
 
         when {
@@ -160,7 +159,18 @@ class ZirkimakoService : InputMethodService() {
             r == 3 && c == 0 -> cycleMode()
             r == 3 && c == 1 -> performMutation()
             else -> {
-                val s = getChar(r, c, d) ?: return
+                val layout = if (currentMode == KeyboardMode.NUM) numLayout else basqueLayout
+                val k = layout[Pair(r, c)] ?: return
+                var s = k.getChar(gesture) ?: return
+                
+                if (currentMode == KeyboardMode.UPPER) {
+                    s = s.uppercase()
+                } else if (nextShifted) {
+                    s = s.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+                    nextShifted = false
+                    refreshKeyboardModeUI()
+                }
+
                 ic.beginBatchEdit()
                 if (!s.any { it.isLetter() }) {
                     commitCurrent()
@@ -345,33 +355,6 @@ class ZirkimakoService : InputMethodService() {
         }
         nextShifted = false
         refreshKeyboardModeUI()
-    }
-
-    private fun getChar(r: Int, c: Int, d: FlickDirection): String? {
-        val layout = if (currentMode == KeyboardMode.NUM) numLayout else basqueLayout
-        val k = layout[Pair(r,c)] ?: return null
-        val charStr = when(d) { 
-            FlickDirection.TAP -> k.tap
-            FlickDirection.UP -> k.up
-            FlickDirection.RIGHT -> k.right
-            FlickDirection.LEFT -> k.left
-            FlickDirection.DOWN -> k.down
-            FlickDirection.UP_RIGHT -> k.ur
-            FlickDirection.DOWN_RIGHT -> k.dr
-            FlickDirection.DOWN_LEFT -> k.dl
-            FlickDirection.UP_LEFT -> k.ul
-        } ?: return null
-        
-        return when {
-            currentMode == KeyboardMode.UPPER -> charStr.uppercase()
-            nextShifted -> {
-                val res = charStr.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
-                nextShifted = false
-                refreshKeyboardModeUI()
-                res
-            }
-            else -> charStr
-        }
     }
 
     private fun updatePasteButtonVisibility() {

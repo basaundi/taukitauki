@@ -18,8 +18,6 @@ class ZirkimakoView(context: Context, attrs: AttributeSet?) : View(context, attr
     private var cellWidth = 0f
     private var cellHeight = 0f
     
-    // We intercept the layoutMap setter to populate a 1D array for lightning-fast, 
-    // zero-allocation lookups during onDraw()
     private val fastKeyLookup = Array<FlickKey?>(rows * cols) { null }
     var layoutMap: Map<Pair<Int, Int>, FlickKey> = emptyMap()
         set(value) {
@@ -48,7 +46,7 @@ class ZirkimakoView(context: Context, attrs: AttributeSet?) : View(context, attr
     private val paintCenterText = Paint().apply { textAlign = Paint.Align.CENTER; isFakeBoldText = true; color = Color.WHITE }
     private val paintFlickText = Paint().apply { textAlign = Paint.Align.CENTER; textSize = 26f; color = Color.LTGRAY }
 
-    var keyActionListener: ((row: Int, col: Int, direction: FlickDirection) -> Unit)? = null
+    var keyActionListener: ((row: Int, col: Int, gesture: Gesture) -> Unit)? = null
     var longPressListener: ((row: Int, col: Int) -> Unit)? = null
     var backspaceListener: (() -> Unit)? = null
 
@@ -86,7 +84,6 @@ class ZirkimakoView(context: Context, attrs: AttributeSet?) : View(context, attr
                 val left = c * cellWidth
                 val top = r * cellHeight
                 
-                // Background for special keys
                 when {
                     r == 3 && c == 4 -> {
                         canvas.drawRect(left, top, left + cellWidth, top + cellHeight, paintEnterKey)
@@ -118,7 +115,6 @@ class ZirkimakoView(context: Context, attrs: AttributeSet?) : View(context, attr
                 if (specialLabel != null) {
                     canvas.drawText(specialLabel, left + cellWidth / 2, top + cellHeight / 2 + (paintCenterText.textSize / 3), paintCenterText)
                 } else {
-                    // Pulling from the flat array directly to avoid generating Map key Pairs
                     fastKeyLookup[r * cols + c]?.let { drawKeyLabels(canvas, it, left, top) }
                 }
             }
@@ -141,7 +137,6 @@ class ZirkimakoView(context: Context, attrs: AttributeSet?) : View(context, attr
         format(key.down)?.let { canvas.drawText(it, cx, top + cellHeight - 15, paintFlickText) }
         format(key.left)?.let { canvas.drawText(it, left + 25, cy + 10, paintFlickText) }
         format(key.right)?.let { canvas.drawText(it, left + cellWidth - 25, cy + 10, paintFlickText) }
-        
         format(key.ul)?.let { canvas.drawText(it, left + 30, top + 35, paintFlickText) }
         format(key.ur)?.let { canvas.drawText(it, left + cellWidth - 30, top + 35, paintFlickText) }
         format(key.dl)?.let { canvas.drawText(it, left + 30, top + cellHeight - 15, paintFlickText) }
@@ -165,39 +160,17 @@ class ZirkimakoView(context: Context, attrs: AttributeSet?) : View(context, attr
                 repeatHandler.removeCallbacks(repeatRunnable)
                 if (!(pressedRow == 0 && pressedCol == 4) && pressedRow != -1) {
                     val dist = hypot((event.x - startX).toDouble(), (event.y - startY).toDouble())
-                    // Look up via array index to prevent allocation
-                    val key = fastKeyLookup[pressedRow * cols + pressedCol]
-                    val dir = if (dist < 40f) FlickDirection.TAP else calculateDir(startX, startY, event.x, event.y, key?.is8Way ?: false)
-                    keyActionListener?.invoke(pressedRow, pressedCol, dir)
+                    
+                    var angle = Math.toDegrees(atan2((event.y - startY).toDouble(), (event.x - startX).toDouble()))
+                    if (angle < 0) angle += 360
+                    
+                    val gesture = Gesture(isTap = dist < 40f, angle = angle)
+                    keyActionListener?.invoke(pressedRow, pressedCol, gesture)
                 }
                 pressedRow = -1; pressedCol = -1
                 invalidate()
             }
         }
         return true
-    }
-
-    private fun calculateDir(x1: Float, y1: Float, x2: Float, y2: Float, is8Way: Boolean): FlickDirection {
-        var angle = Math.toDegrees(atan2((y2 - y1).toDouble(), (x2 - x1).toDouble()))
-        if (angle < 0) angle += 360
-        return if (is8Way) {
-            when (angle) {
-                in 337.5..360.0, in 0.0..22.5 -> FlickDirection.RIGHT
-                in 22.5..67.5 -> FlickDirection.DOWN_RIGHT
-                in 67.5..112.5 -> FlickDirection.DOWN
-                in 112.5..157.5 -> FlickDirection.DOWN_LEFT
-                in 157.5..202.5 -> FlickDirection.LEFT
-                in 202.5..247.5 -> FlickDirection.UP_LEFT
-                in 247.5..292.5 -> FlickDirection.UP
-                else -> FlickDirection.UP_RIGHT
-            }
-        } else {
-            when (angle) {
-                in 315.0..360.0, in 0.0..45.0 -> FlickDirection.RIGHT
-                in 45.0..135.0 -> FlickDirection.DOWN
-                in 135.0..225.0 -> FlickDirection.LEFT
-                else -> FlickDirection.UP
-            }
-        }
     }
 }

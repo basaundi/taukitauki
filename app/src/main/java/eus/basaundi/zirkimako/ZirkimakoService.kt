@@ -32,7 +32,8 @@ class ZirkimakoService : InputMethodService() {
         "m" to "j", "j" to "m", "h" to "",
         "a" to "ha", "e" to "he", "i" to "hi", "o" to "ho", "u" to "hu", "ü" to "hü",
         "(" to ")", ")" to "(", "\"" to "'", "'" to "\"", "{" to "}", "}" to "{",
-        "<" to ">", ">" to "<", "[" to "]", "]" to "[", "/" to "\\", "\\" to "/"
+        "<" to ">", ">" to "<", "[" to "]", "]" to "[", "/" to "\\", "\\" to "/",
+        "-" to "_", "_" to "-", "?" to "¿", "¿" to "?", "!" to "¡", "¡" to "!",
     )
 
     private lateinit var dbHelper: DictionaryDatabaseHelper
@@ -61,9 +62,15 @@ class ZirkimakoService : InputMethodService() {
     )
 
     private val numLayout = mapOf(
-        Pair(0, 1) to FlickKey("1"), Pair(0, 2) to FlickKey("2"), Pair(0, 3) to FlickKey("3"),
-        Pair(1, 1) to FlickKey("4"), Pair(1, 2) to FlickKey("5"), Pair(1, 3) to FlickKey("6"),
-        Pair(2, 1) to FlickKey("7"), Pair(2, 2) to FlickKey("8"), Pair(2, 3) to FlickKey("9"),
+        Pair(0, 1) to FlickKey("1"),
+        Pair(0, 2) to FlickKey("2"),
+        Pair(0, 3) to FlickKey("3"),
+        Pair(1, 1) to FlickKey("4"),
+        Pair(1, 2) to FlickKey("5"),
+        Pair(1, 3) to FlickKey("6"),
+        Pair(2, 1) to FlickKey("7"),
+        Pair(2, 2) to FlickKey("8"),
+        Pair(2, 3) to FlickKey("9"),
         Pair(3, 2) to FlickKey("0"),
         Pair(3, 3) to FlickKey(".", ",", ":", ";", "/", ul = "(", ur = ")", dl = "[", dr = "]")
     )

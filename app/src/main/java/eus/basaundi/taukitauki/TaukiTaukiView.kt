@@ -10,37 +10,22 @@ import android.view.MotionEvent
 import android.view.View
 import kotlin.math.atan2
 import kotlin.math.hypot
+import kotlin.math.cos
+import kotlin.math.sin
 
 class TaukiTaukiView(context: Context, attrs: AttributeSet?) : View(context, attrs) {
 
-    // ─── Grid (fixed for Basque/Num; dynamic for QWERTY) ─────────────────────
+    // ─── Grid ─────────────────────────────────────────────────────────────────
 
     private val BASQUE_ROWS = 4
     private val BASQUE_COLS = 5
 
-    // QWERTY row definitions: list of (label, col-index-within-row) — we map to
-    // a virtual grid where each row has its own column count.
-    // Row 0: q w e r t y u i o p          (10 keys, col 0-9)
-    // Row 1: a s d f g h j k l            (9 keys,  col 0-8)
-    // Row 2: ⇧ z x c v b n m ⌫           (9 keys,  col 0-8)
-    // Row 3: mode , ␣ . ← → ⏎            (7 keys,  col 0-6)
-    // QWERTY row definitions — number of equal-width unit slots per row.
-    // Row 0: q w e r t y u i o p          (10 keys, col 0-9)
-    // Row 1: a s d f g h j k l            (9 keys,  col 0-8)
-    // Row 2: ⇧ z x c v b n m ⌫           (9 keys,  col 0-8)
-    // Row 3: mode(0) ,(1) ␣(2+3) .(4) ←(5) →(6) ⏎(7)
-    //        8 unit slots; spacebar spans slots 2-3 (double width).
-    //        Hit on slot 3 is remapped to col 2 (space) before firing.
+    // Row 3: mode(0) ,(1) ␣(2+3 double) .(4) ←(5) →(6) ⏎(7)  → 8 unit slots
     private val qwertyRowCols = intArrayOf(10, 9, 9, 8)
-
-    // For QWERTY the View uses a separate rendering path; row/col here are
-    // indices into qwertyRowCols.
-    // For Basque/Num the existing fixed-grid path is used unchanged.
 
     private var cellWidth  = 0f
     private var cellHeight = 0f
 
-    // Fast flat-array lookup for Basque/Num modes
     private val fastKeyLookup = Array<FlickKey?>(BASQUE_ROWS * BASQUE_COLS) { null }
 
     var layoutMap: Map<Pair<Int, Int>, FlickKey> = emptyMap()
@@ -52,8 +37,6 @@ class TaukiTaukiView(context: Context, attrs: AttributeSet?) : View(context, att
             invalidate()
         }
 
-    // QWERTY layout: row -> list of (label, FlickKey?)
-    // Special keys have null FlickKey and are handled by label.
     var qwertyRows: List<List<Pair<String, FlickKey?>>> = emptyList()
 
     // ─── Display state ────────────────────────────────────────────────────────
@@ -71,6 +54,7 @@ class TaukiTaukiView(context: Context, attrs: AttributeSet?) : View(context, att
 
     private val paintGrid           = Paint().apply { strokeWidth = 2f; style = Paint.Style.STROKE; color = 0xFF333333.toInt() }
     private val paintHighlight      = Paint().apply { style = Paint.Style.FILL; color = 0xFF444444.toInt() }
+    private val paintDirHighlight   = Paint().apply { style = Paint.Style.FILL; color = 0xFF556677.toInt() }
     private val paintSpecialKey     = Paint().apply { style = Paint.Style.FILL; color = 0xFF222222.toInt() }
     private val paintShiftActive    = Paint().apply { style = Paint.Style.FILL; color = 0xFF555555.toInt() }
     private val paintShiftUppercase = Paint().apply { style = Paint.Style.FILL; color = 0xFF1976D2.toInt() }
@@ -91,6 +75,11 @@ class TaukiTaukiView(context: Context, attrs: AttributeSet?) : View(context, att
     private var startX = 0f
     private var startY = 0f
 
+    // Live drag direction: null = no drag / tap zone. 0..7 = direction index (same as FlickKey angle order)
+    // Directions: 0=right, 1=dr, 2=down, 3=dl, 4=left, 5=ul, 6=up, 7=ur
+    private var dragDirIndex: Int? = null
+    private val DRAG_THRESHOLD = 18f   // px before we leave the tap zone
+
     private val repeatHandler = Handler(Looper.getMainLooper())
     private val repeatRunnable = object : Runnable {
         override fun run() {
@@ -110,14 +99,10 @@ class TaukiTaukiView(context: Context, attrs: AttributeSet?) : View(context, att
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
-        if (!isQwerty) {
-            cellWidth  = w.toFloat() / BASQUE_COLS
-            cellHeight = h.toFloat() / BASQUE_ROWS
-            paintCenterText.textSize = cellHeight * 0.35f
-        } else {
-            cellHeight = h.toFloat() / qwertyRowCols.size
-            paintCenterText.textSize = cellHeight * 0.38f
-        }
+        // Always compute both, since qwertyActive can change without onSizeChanged firing again.
+        cellWidth  = w.toFloat() / BASQUE_COLS
+        cellHeight = h.toFloat() / BASQUE_ROWS   // same row count as qwertyRowCols.size (4)
+        paintCenterText.textSize = cellHeight * 0.36f
     }
 
     // ─── Hit testing ──────────────────────────────────────────────────────────
@@ -132,10 +117,102 @@ class TaukiTaukiView(context: Context, attrs: AttributeSet?) : View(context, att
             val cols = qwertyRowCols[row]
             val colWidth = width.toFloat() / cols
             var col = (x / colWidth).toInt().coerceIn(0, cols - 1)
-            // Row 3: slot 3 is the right half of the double-width spacebar → remap to col 2
             if (row == 3 && col == 3) col = 2
             Pair(row, col)
         }
+    }
+
+    // Returns the cell rect (left, top, right, bottom) for a given (row, col) in whichever mode.
+    private fun cellRect(r: Int, c: Int): RectF {
+        return if (!isQwerty) {
+            RectF(c * cellWidth, r * cellHeight, (c + 1) * cellWidth, (r + 1) * cellHeight)
+        } else {
+            val unitWidth = width.toFloat() / qwertyRowCols[r]
+            val colSpan = if (r == 3 && c == 2) 2 else 1
+            RectF(c * unitWidth, r * cellHeight, (c + colSpan) * unitWidth, (r + 1) * cellHeight)
+        }
+    }
+
+    // ─── Direction sector highlight ──────────────────────────────────────────────
+
+    // Direction indices: 0=right(0°) 1=dr(45°) 2=down(90°) 3=dl(135°)
+    //                    4=left(180°) 5=ul(225°) 6=up(270°) 7=ur(315°)
+    private fun angleToDir(angle: Double): Int {
+        val a = ((angle % 360) + 360) % 360
+        return ((a + 22.5) / 45).toInt() % 8
+    }
+
+    // Returns the set of configured direction indices for a FlickKey (excludes tap).
+    private fun configuredDirs(key: FlickKey?): Set<Int> {
+        if (key == null) return emptySet()
+        val dirs = mutableSetOf<Int>()
+        if (key.right != null) dirs.add(0)
+        if (key.dr    != null) dirs.add(1)
+        if (key.down  != null) dirs.add(2)
+        if (key.dl    != null) dirs.add(3)
+        if (key.left  != null) dirs.add(4)
+        if (key.ul    != null) dirs.add(5)
+        if (key.up    != null) dirs.add(6)
+        if (key.ur    != null) dirs.add(7)
+        return dirs
+    }
+
+    // Draw the sector wedge for the given direction: apex at cell centre, sides
+    // extend to the cell boundary clipped by the ±22.5° half-sector lines.
+    private fun drawSectorHighlight(canvas: Canvas, rect: RectF, dirIndex: Int) {
+        val cx = rect.centerX()
+        val cy = rect.centerY()
+        val w  = rect.width()
+        val h  = rect.height()
+
+        // The sector spans ±22.5° around the direction angle.
+        val midDeg  = dirIndex * 45.0
+        val halfDeg = 22.5
+        val leftDeg  = midDeg - halfDeg
+        val rightDeg = midDeg + halfDeg
+
+        // Compute intersection of a ray from centre at given angle with the cell boundary.
+        fun rayHit(deg: Double): PointF {
+            val rad = Math.toRadians(deg)
+            val dx = cos(rad).toFloat()
+            val dy = sin(rad).toFloat()
+            // Find t for each edge, take the smallest positive t that actually hits an edge.
+            val ts = mutableListOf<Float>()
+            if (dx > 0)  ts.add((rect.right  - cx) / dx)
+            if (dx < 0)  ts.add((rect.left   - cx) / dx)
+            if (dy > 0)  ts.add((rect.bottom - cy) / dy)
+            if (dy < 0)  ts.add((rect.top    - cy) / dy)
+            val t = ts.filter { it > 0 }.minOrNull() ?: 1f
+            return PointF(cx + dx * t, cy + dy * t)
+        }
+
+        val pLeft  = rayHit(leftDeg)
+        val pRight = rayHit(rightDeg)
+
+        // Build a polygon: centre → left boundary point → (optional corner) → right boundary point → centre
+        val path = Path()
+        path.moveTo(cx, cy)
+        path.lineTo(pLeft.x, pLeft.y)
+
+        // If the sector spans a corner of the rectangle, include that corner so the sector
+        // fills flush to the edge rather than cutting across it.
+        // A corner is included if its angle from centre falls within [leftDeg, rightDeg].
+        val corners = listOf(
+            PointF(rect.right, rect.top)    to Math.toDegrees(atan2((rect.top    - cy).toDouble(), (rect.right - cx).toDouble())),
+            PointF(rect.right, rect.bottom) to Math.toDegrees(atan2((rect.bottom - cy).toDouble(), (rect.right - cx).toDouble())),
+            PointF(rect.left,  rect.bottom) to Math.toDegrees(atan2((rect.bottom - cy).toDouble(), (rect.left  - cx).toDouble())),
+            PointF(rect.left,  rect.top)    to Math.toDegrees(atan2((rect.top    - cy).toDouble(), (rect.left  - cx).toDouble())),
+        )
+        for ((corner, cornerDeg) in corners) {
+            // Normalise corner angle to same base as our sector
+            val norm = ((cornerDeg - leftDeg) % 360 + 360) % 360
+            val span = ((rightDeg - leftDeg) % 360 + 360) % 360
+            if (norm in 0.0..span) path.lineTo(corner.x, corner.y)
+        }
+
+        path.lineTo(pRight.x, pRight.y)
+        path.close()
+        canvas.drawPath(path, paintDirHighlight)
     }
 
     // ─── Drawing ──────────────────────────────────────────────────────────────
@@ -151,10 +228,18 @@ class TaukiTaukiView(context: Context, attrs: AttributeSet?) : View(context, att
             for (c in 0 until BASQUE_COLS) {
                 val left = c * cellWidth
                 val top  = r * cellHeight
+                val rect = RectF(left, top, left + cellWidth, top + cellHeight)
                 drawBasqueCellBackground(canvas, r, c, left, top)
-                if (r == pressedRow && c == pressedCol)
-                    canvas.drawRect(left, top, left + cellWidth, top + cellHeight, paintHighlight)
-                canvas.drawRect(left, top, left + cellWidth, top + cellHeight, paintGrid)
+                if (r == pressedRow && c == pressedCol) {
+                    val key = fastKeyLookup[r * BASQUE_COLS + c]
+                    val dirs = configuredDirs(key)
+                    val dir = dragDirIndex
+                    when {
+                        dir != null && dir in dirs -> drawSectorHighlight(canvas, rect, dir)
+                        else -> canvas.drawRect(rect, paintHighlight)
+                    }
+                }
+                canvas.drawRect(rect, paintGrid)
                 drawBasqueCellContent(canvas, r, c, left, top)
             }
         }
@@ -205,15 +290,16 @@ class TaukiTaukiView(context: Context, attrs: AttributeSet?) : View(context, att
             val unitWidth = width.toFloat() / numCols
             val top = r * cellHeight
             for (c in 0 until numCols) {
-                // Row 3: slot 3 is consumed by the double-width spacebar drawn at slot 2 — skip it
-                if (r == 3 && c == 3) continue
+                if (r == 3 && c == 3) continue  // consumed by double-width spacebar
                 val left = c * unitWidth
-                // Spacebar (row 3, col 2) spans two unit slots
                 val colWidth = if (r == 3 && c == 2) unitWidth * 2 else unitWidth
+                val rect = RectF(left, top, left + colWidth, top + cellHeight)
                 drawQwertyCellBackground(canvas, r, c, left, top, colWidth)
-                if (r == pressedRow && c == pressedCol)
-                    canvas.drawRect(left, top, left + colWidth, top + cellHeight, paintHighlight)
-                canvas.drawRect(left, top, left + colWidth, top + cellHeight, paintGrid)
+                if (r == pressedRow && c == pressedCol) {
+                    // QWERTY keys are tap-only (no flick directions), so always full highlight
+                    canvas.drawRect(rect, paintHighlight)
+                }
+                canvas.drawRect(rect, paintGrid)
                 drawQwertyCellContent(canvas, r, c, left, top, colWidth)
             }
         }
@@ -221,17 +307,17 @@ class TaukiTaukiView(context: Context, attrs: AttributeSet?) : View(context, att
 
     private fun drawQwertyCellBackground(canvas: Canvas, r: Int, c: Int, left: Float, top: Float, colWidth: Float) {
         val paint = when {
-            r == 3 && c == 7 -> paintEnterKey               // ⏎  (slot 7)
-            r == 2 && c == 0 -> when (currentMode) {        // ⇧
+            r == 3 && c == 7 -> paintEnterKey
+            r == 2 && c == 0 -> when (currentMode) {
                 KeyboardMode.UPPER -> paintShiftUppercase
                 KeyboardMode.TITLE -> paintShiftActive
                 else               -> paintSpecialKey
             }
-            r == 2 && c == 8 -> paintSpecialKey             // ⌫
-            r == 3 && c == 0 -> paintSpecialKey             // mode
-            r == 3 && c == 2 -> paintSpecialKey             // ␣  (double-width, slots 2-3)
-            r == 3 && c == 5 -> paintSpecialKey             // ←  (slot 5)
-            r == 3 && c == 6 -> paintSpecialKey             // →  (slot 6)
+            r == 2 && c == 8 -> paintSpecialKey
+            r == 3 && c == 0 -> paintSpecialKey
+            r == 3 && c == 2 -> paintSpecialKey
+            r == 3 && c == 5 -> paintSpecialKey
+            r == 3 && c == 6 -> paintSpecialKey
             else -> return
         }
         canvas.drawRect(left, top, left + colWidth, top + cellHeight, paint)
@@ -240,12 +326,18 @@ class TaukiTaukiView(context: Context, attrs: AttributeSet?) : View(context, att
     private fun drawQwertyCellContent(canvas: Canvas, r: Int, c: Int, left: Float, top: Float, colWidth: Float) {
         val cx = left + colWidth / 2
         val cy = top + cellHeight / 2 + paintCenterText.textSize / 3
-        val label = qwertySpecialLabelFor(r, c) ?: qwertyKeyLabelFor(r, c)
-        if (label != null) {
-            val display = if (isUppercase) label.uppercase()
-                          else if (isShifted) label.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
-                          else label
-            canvas.drawText(display, cx, cy, paintCenterText)
+        val mainLabel = qwertySpecialLabelFor(r, c) ?: qwertyKeyLabelFor(r, c) ?: return
+        val display = when {
+            isUppercase -> mainLabel.uppercase()
+            isShifted   -> mainLabel.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+            else        -> mainLabel
+        }
+        canvas.drawText(display, cx, cy, paintCenterText)
+
+        // Show the flick-up digit for row 0 keys (small, top-centre of cell)
+        val digit = qwertyDigitLabelFor(r, c)
+        if (digit != null) {
+            canvas.drawText(digit, cx, top + 28f, paintFlickText)
         }
     }
 
@@ -254,7 +346,7 @@ class TaukiTaukiView(context: Context, attrs: AttributeSet?) : View(context, att
         r == 2 && c == 8 -> context.getString(R.string.label_backspace)
         r == 3 && c == 0 -> modeLabel
         r == 3 && c == 1 -> ","
-        r == 3 && c == 2 -> context.getString(R.string.label_space_key)  // double-width
+        r == 3 && c == 2 -> context.getString(R.string.label_space_key)
         r == 3 && c == 4 -> "."
         r == 3 && c == 5 -> context.getString(R.string.label_left)
         r == 3 && c == 6 -> context.getString(R.string.label_right)
@@ -266,22 +358,28 @@ class TaukiTaukiView(context: Context, attrs: AttributeSet?) : View(context, att
         val rows = listOf(
             listOf("q","w","e","r","t","y","u","i","o","p"),
             listOf("a","s","d","f","g","h","j","k","l"),
-            listOf("","z","x","c","v","b","n","m","")  // 0=shift, 8=backspace handled above
+            listOf("","z","x","c","v","b","n","m","")
         )
         return rows.getOrNull(r)?.getOrNull(c)?.takeIf { it.isNotEmpty() }
     }
 
-    // ─── Flick key label drawing (shared by Basque/Num) ──────────────────────
+    // The digit shown as a flick-up hint on row-0 QWERTY keys
+    private fun qwertyDigitLabelFor(r: Int, c: Int): String? {
+        if (r != 0) return null
+        return listOf("1","2","3","4","5","6","7","8","9","0").getOrNull(c)
+    }
+
+    // ─── Flick key label drawing (Basque/Num) ─────────────────────────────────
 
     private fun drawFlickKeyLabels(canvas: Canvas, key: FlickKey, left: Float, top: Float, w: Float, h: Float) {
         val cx = left + w / 2
         val cy = top  + h / 2
 
         fun fmt(s: String?) = when {
-            s == null    -> null
-            isUppercase  -> s.uppercase()
-            isShifted    -> s.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
-            else         -> s
+            s == null   -> null
+            isUppercase -> s.uppercase()
+            isShifted   -> s.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+            else        -> s
         }
 
         fmt(key.tap)?.let   { canvas.drawText(it, cx,          cy + 15,          paintCenterText) }
@@ -304,12 +402,27 @@ class TaukiTaukiView(context: Context, attrs: AttributeSet?) : View(context, att
                 startX = event.x; startY = event.y
                 val (r, c) = hitTest(startX, startY)
                 pressedRow = r; pressedCol = c
+                dragDirIndex = null
                 invalidate()
-                // Backspace: basque=(0,4), qwerty=(2,8)
                 val isBackspace = (!isQwerty && r == 0 && c == 4) || (isQwerty && r == 2 && c == 8)
                 if (isBackspace) {
                     backspaceListener?.invoke()
                     repeatHandler.postDelayed(repeatRunnable, 400)
+                }
+            }
+            MotionEvent.ACTION_MOVE -> {
+                if (pressedRow != -1) {
+                    val dx = event.x - startX
+                    val dy = event.y - startY
+                    val dist = hypot(dx.toDouble(), dy.toDouble())
+                    dragDirIndex = if (dist < DRAG_THRESHOLD) {
+                        null  // still in tap zone
+                    } else {
+                        var angle = Math.toDegrees(atan2(dy.toDouble(), dx.toDouble()))
+                        if (angle < 0) angle += 360
+                        angleToDir(angle)
+                    }
+                    invalidate()
                 }
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
@@ -323,6 +436,7 @@ class TaukiTaukiView(context: Context, attrs: AttributeSet?) : View(context, att
                     keyActionListener?.invoke(pr, pc, Gesture(isTap = dist < 40f, angle = angle))
                 }
                 pressedRow = -1; pressedCol = -1
+                dragDirIndex = null
                 invalidate()
             }
         }

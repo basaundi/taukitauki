@@ -110,6 +110,28 @@ def load_bigrams(filepath):
     return bigrams
 
 
+
+# ─── Emoji loading ────────────────────────────────────────────────────────────
+
+def load_emojis(filepath):
+    """
+    Loads emoji.json — a flat dict of {"basque name": "emoji", ...}.
+    Returns list of (name, emoji) tuples, names lowercased for prefix matching.
+    """
+    if not filepath.exists():
+        print(f"Info: No emoji file at {filepath}; skipping emoji table.")
+        return []
+    with open(filepath, encoding="utf-8") as f:
+        raw = json.load(f)
+    if not isinstance(raw, dict):
+        print("Warning: emoji.json must be a dict of name->emoji; skipping.")
+        return []
+    entries = [(name.strip().lower(), emoji.strip())
+               for name, emoji in raw.items() if name.strip() and emoji.strip()]
+    print(f"Loaded {len(entries):,} emoji entries.")
+    return entries
+
+
 # ─── Database builder ─────────────────────────────────────────────────────────
 
 def generate_db(min_freq, use_dict):
@@ -140,7 +162,11 @@ def generate_db(min_freq, use_dict):
     # 3. Bigrams
     bigrams = load_bigrams(bigram_path)
 
-    # 4. Write SQLite
+    # 4. Emojis
+    emoji_path = root / "data" / "emoji.json"
+    emojis = load_emojis(emoji_path)
+
+    # 5. Write SQLite
     conn   = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
@@ -165,6 +191,14 @@ def generate_db(min_freq, use_dict):
             "INSERT OR REPLACE INTO bigrams (prev_word, next_word, frequency) VALUES (?, ?, ?)",
             bigrams
         )
+
+    # Emojis table
+    cursor.execute("DROP TABLE IF EXISTS emojis")
+    cursor.execute("CREATE TABLE emojis (name TEXT PRIMARY KEY, emoji TEXT NOT NULL)")
+    cursor.execute("CREATE INDEX idx_emoji_name ON emojis(name)")
+    if emojis:
+        print(f"Inserting {len(emojis):,} emoji records...")
+        cursor.executemany("INSERT OR REPLACE INTO emojis (name, emoji) VALUES (?, ?)", emojis)
 
     conn.commit()
     conn.close()

@@ -64,4 +64,21 @@ class DictionaryDatabaseHelper(private val context: Context) : SQLiteOpenHelper(
         }
         return suggestions
     }
+
+    fun getEmojiSuggestions(prefix: String, limit: Int = 3): List<String> {
+        if (prefix.isBlank()) return emptyList()
+        val results = mutableListOf<String>()
+        try {
+            readableDatabase.rawQuery(
+                "SELECT emoji FROM emojis WHERE name LIKE ? LIMIT ?",
+                arrayOf("$prefix%", limit.toString())
+            ).use { cursor ->
+                while (cursor.moveToNext()) results.add(cursor.getString(0))
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return results
+    }
+
 }

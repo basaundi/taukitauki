@@ -100,11 +100,14 @@ class TaukiTaukiService : InputMethodService() {
     // Row 1: a s d f g h j k l    (9 keys,  cols 0-8)
     // Row 2: shift z x c v b n m backspace  (9 slots — col 0 = shift, col 8 = backspace)
     // Row 3: mode , space(double) . left right enter  (8 slots, spacebar spans slots 2-3)
+    // QWERTY tap characters. Row 0 also supports flick-up for digits 1-0.
     private val qwertyChars = listOf(
         listOf("q","w","e","r","t","y","u","i","o","p"),
         listOf("a","s","d","f","g","h","j","k","l"),
         listOf<String?>(null,"z","x","c","v","b","n","m",null)
     )
+    // Digits mapped to row-0 flick-up (col 0-9 → 1 2 3 4 5 6 7 8 9 0)
+    private val qwertyDigits = listOf("1","2","3","4","5","6","7","8","9","0")
 
     // ─── Lifecycle ────────────────────────────────────────────────────────────
 
@@ -113,6 +116,11 @@ class TaukiTaukiService : InputMethodService() {
         dbHelper = DictionaryDatabaseHelper(this)
         clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         clipboardManager.addPrimaryClipChangedListener(clipboardListener)
+        // Reload layout when user changes character toggles in Settings
+        android.preference.PreferenceManager.getDefaultSharedPreferences(this)
+            .registerOnSharedPreferenceChangeListener { _, key ->
+                if (key?.startsWith("char_enabled_") == true) refreshKeyboardModeUI()
+            }
     }
 
     override fun onDestroy() {
@@ -158,7 +166,10 @@ class TaukiTaukiService : InputMethodService() {
         suggestions.forEach { tv ->
             tv.setOnClickListener { v ->
                 val suggestion = (v as TextView).text.toString()
-                if (suggestion.isNotEmpty()) commitWord(applyCase(suggestion))
+                if (suggestion.isNotEmpty()) {
+                    if (isEmoji(suggestion)) commitEmoji(suggestion)
+                    else commitWord(applyCase(suggestion))
+                }
             }
         }
 
@@ -203,9 +214,17 @@ class TaukiTaukiService : InputMethodService() {
             r == 3 && c == 6 -> { commitCurrent(); ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_RIGHT)); updateCapsMode() }
             r == 3 && c == 7 -> { commitCurrent(); ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER)); updateCapsMode() }
             else -> {
-                val ch = qwertyChars.getOrNull(r)?.getOrNull(c) ?: return
-                var s = applyCase(ch)
-                if (currentMode == KeyboardMode.TITLE && s.any { it.isLetter() }) {
+                // Row 0 flick-up → digit (1-0), bypasses case transformation
+                val isFlickUp = r == 0 && !gesture.isTap && run {
+                    val a = ((gesture.angle % 360) + 360) % 360
+                    a in 225.0..315.0
+                }
+                val raw = if (isFlickUp) qwertyDigits.getOrNull(c)
+                          else qwertyChars.getOrNull(r)?.getOrNull(c)
+                raw ?: return
+                val isDigit = raw.all { it.isDigit() }
+                var s = if (isDigit) raw else applyCase(raw)
+                if (!isDigit && currentMode == KeyboardMode.TITLE && s.any { it.isLetter() }) {
                     currentMode = KeyboardMode.LOWER
                     refreshKeyboardModeUI()
                 }
@@ -214,7 +233,7 @@ class TaukiTaukiService : InputMethodService() {
                 else if (composingWord.isNotEmpty() && !composingWord.any { it.isLetter() }) commitCurrent()
                 composingWord.append(s)
                 lastInput = s
-                lastInputMode = currentMode
+                lastInputMode = if (isDigit) KeyboardMode.LOWER else currentMode
                 updateUI()
                 ic.endBatchEdit()
             }
@@ -289,6 +308,30 @@ class TaukiTaukiService : InputMethodService() {
             updateUI()
             updateCapsMode()
         }
+    }
+
+    // ─── Emoji helpers ───────────────────────────────────────────────────────────
+
+    // A string counts as an emoji suggestion if every code point is outside the Basic
+    // Multilingual Plane (i.e. supplementary) or is a known emoji modifier/combiner.
+    // Simple heuristic: check if the first code point has type SURROGATE or is ≥ U+2000.
+    private fun isEmoji(s: String): Boolean {
+        if (s.isEmpty()) return false
+        val cp = s.codePointAt(0)
+        return cp >= 0x2000  // covers all emoji ranges (symbols, pictographs, etc.)
+    }
+
+    // Commit an emoji: discard the composing word and insert emoji + space.
+    private fun commitEmoji(emoji: String) {
+        val ic = currentInputConnection ?: return
+        ic.commitText("", 1)           // clear composing text without committing it
+        ic.commitText("$emoji ", 1)
+        composingWord.setLength(0)
+        lastInput = ""
+        lastInputMode = KeyboardMode.LOWER
+        lastCommittedWord = ""         // emoji doesn't feed bigram prediction
+        updateUI()
+        updateCapsMode()
     }
 
     // ─── Mutation ─────────────────────────────────────────────────────────────
@@ -370,7 +413,14 @@ class TaukiTaukiService : InputMethodService() {
 
         dbExecutor.execute {
             val preds: List<String> = when {
-                word.isNotEmpty()              -> dbHelper.getSuggestions(word.lowercase())
+                word.isNotEmpty() -> {
+                    // Merge emoji matches (prefix on name) with word completions.
+                    // Emoji slots: up to 2 at the front; word slots: fill the rest up to 5 total.
+                    val prefix = word.lowercase()
+                    val emojis = dbHelper.getEmojiSuggestions(prefix, limit = 2)
+                    val words  = dbHelper.getSuggestions(prefix, limit = 5 - emojis.size)
+                    emojis + words
+                }
                 lastCommittedWord.isNotEmpty() -> dbHelper.getBigramSuggestions(lastCommittedWord)
                 else                           -> emptyList()
             }
@@ -397,7 +447,8 @@ class TaukiTaukiService : InputMethodService() {
         keyboardView.currentMode = currentMode
         keyboardView.qwertyActive = qwertyActive
         // layoutMap is only used for Basque/Num; QWERTY has its own draw path
-        keyboardView.layoutMap = if (currentMode == KeyboardMode.NUM) numLayout else basqueLayout
+        val rawLayout = if (currentMode == KeyboardMode.NUM) numLayout else basqueLayout
+        keyboardView.layoutMap = KeyFilter.applyToLayout(this, rawLayout)
         keyboardView.modeLabel = when {
             qwertyActive              -> getString(R.string.mode_qwerty)
             currentMode == KeyboardMode.NUM   -> getString(R.string.mode_number)
@@ -417,14 +468,14 @@ class TaukiTaukiService : InputMethodService() {
 
     private fun cycleMode() {
         when {
-            currentMode == KeyboardMode.NUM -> {
-                // NUM -> QWERTY (keep current case mode)
-                qwertyActive = true
-            }
             qwertyActive -> {
                 // QWERTY -> back to Basque (restore lastMode)
                 qwertyActive = false
                 currentMode = lastMode.takeIf { it != KeyboardMode.NUM } ?: KeyboardMode.LOWER
+            }
+            currentMode == KeyboardMode.NUM -> {
+                // NUM -> QWERTY (keep current case mode)
+                qwertyActive = true
             }
             else -> {
                 // Basque LOWER/TITLE/UPPER -> NUM

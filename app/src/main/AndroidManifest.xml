@@ -16,10 +16,8 @@
         <activity
             android:name=".SettingsActivity"
             android:exported="true"
-            android:theme="@android:style/Theme.NoDisplay">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN"/>
-            </intent-filter>
+            android:label="TaukiTauki Settings"
+            android:theme="@style/Theme.AppCompat.Light">
         </activity>
 
         <service

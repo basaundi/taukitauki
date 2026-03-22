@@ -1,0 +1,58 @@
+<svg width="1024" height="500" viewBox="0 0 1024 500" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1024" height="500" fill="#1a1a2e"/>
+
+  <g opacity="0.18">
+    <rect x="560" y="40"  width="90" height="70" rx="8" fill="#ffffff"/>
+    <rect x="660" y="40"  width="90" height="70" rx="8" fill="#ffffff"/>
+    <rect x="760" y="40"  width="90" height="70" rx="8" fill="#ffffff"/>
+    <rect x="860" y="40"  width="90" height="70" rx="8" fill="#1565C0"/>
+    <rect x="560" y="120" width="90" height="70" rx="8" fill="#ffffff"/>
+    <rect x="660" y="120" width="90" height="70" rx="8" fill="#ffffff"/>
+    <rect x="760" y="120" width="90" height="70" rx="8" fill="#ffffff"/>
+    <rect x="860" y="120" width="90" height="70" rx="8" fill="#ffffff"/>
+    <rect x="560" y="200" width="90" height="70" rx="8" fill="#ffffff"/>
+    <rect x="660" y="200" width="90" height="70" rx="8" fill="#ffffff"/>
+    <rect x="760" y="200" width="90" height="70" rx="8" fill="#ffffff"/>
+    <rect x="860" y="200" width="90" height="70" rx="8" fill="#ffffff"/>
+    <rect x="560" y="280" width="90" height="70" rx="8" fill="#333355"/>
+    <rect x="660" y="280" width="90" height="70" rx="8" fill="#333355"/>
+    <rect x="760" y="280" width="200" height="70" rx="8" fill="#1565C0"/>
+  </g>
+
+  <g opacity="0.22" font-family="sans-serif" font-weight="700" fill="#ffffff" text-anchor="middle">
+    <text x="605" y="83"  font-size="22">ta</text>
+    <text x="705" y="83"  font-size="22">na</text>
+    <text x="805" y="83"  font-size="22">ba</text>
+    <text x="905" y="83"  font-size="22">⏎</text>
+    <text x="605" y="163" font-size="22">sa</text>
+    <text x="705" y="163" font-size="22">ra</text>
+    <text x="805" y="163" font-size="22">ma</text>
+    <text x="905" y="163" font-size="22">xa</text>
+    <text x="605" y="243" font-size="22">za</text>
+    <text x="705" y="243" font-size="22">ka</text>
+    <text x="805" y="243" font-size="22">ga</text>
+    <text x="905" y="243" font-size="22">⟳</text>
+    <text x="605" y="323" font-size="16">abc</text>
+    <text x="705" y="323" font-size="22">la</text>
+    <text x="860" y="323" font-size="22">␣</text>
+  </g>
+
+  <text x="72" y="180" font-family="sans-serif" font-size="84" font-weight="700" fill="#ffffff" letter-spacing="2">TaukiTauki</text>
+  <rect x="72" y="204" width="420" height="3" rx="1" fill="#1565C0"/>
+  <text x="72" y="248" font-family="sans-serif" font-size="28" fill="#8888bb">Euskal teklatua · Basque keyboard</text>
+
+  <g font-family="sans-serif" font-size="20" font-weight="700">
+    <rect x="72"  y="290" width="148" height="38" rx="19" fill="#23233a"/>
+    <text x="146" y="315" text-anchor="middle" fill="#aaaadd">Flick input</text>
+    <rect x="232" y="290" width="168" height="38" rx="19" fill="#23233a"/>
+    <text x="316" y="315" text-anchor="middle" fill="#aaaadd">Predictions</text>
+    <rect x="412" y="290" width="138" height="38" rx="19" fill="#23233a"/>
+    <text x="481" y="315" text-anchor="middle" fill="#aaaadd">On-device</text>
+    <rect x="72"  y="342" width="188" height="38" rx="19" fill="#23233a"/>
+    <text x="166" y="367" text-anchor="middle" fill="#aaaadd">Mutation swap</text>
+    <rect x="272" y="342" width="152" height="38" rx="19" fill="#1a2a4a"/>
+    <text x="348" y="367" text-anchor="middle" fill="#6699cc">Open source</text>
+  </g>
+
+  <text x="72" y="440" font-family="sans-serif" font-size="20" fill="#44446a">github.com/basaundi/taukitauki</text>
+</svg>

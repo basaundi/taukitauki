@@ -103,8 +103,8 @@
             android:textSize="12sp" />
     </LinearLayout>
 
-    <eus.basaundi.zirkimako.ZirkimakoView
-        android:id="@+id/zirkimako_keyboard_view"
+    <eus.basaundi.taukitauki.TaukiTaukiView
+        android:id="@+id/taukitauki_keyboard_view"
         android:layout_width="match_parent"
         android:layout_height="220dp" />
 </LinearLayout>

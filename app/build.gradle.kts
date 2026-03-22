@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "eus.basaundi.zirkimako"
+    namespace = "eus.basaundi.taukitauki"
     compileSdk = 35 // Bumped for 2026
 
     defaultConfig {
-        applicationId = "eus.basaundi.zirkimako"
+        applicationId = "eus.basaundi.taukitauki"
         minSdk = 26
         targetSdk = 35
         versionCode = 1

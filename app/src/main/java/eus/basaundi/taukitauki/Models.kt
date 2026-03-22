@@ -1,4 +1,4 @@
-package eus.basaundi.zirkimako
+package eus.basaundi.taukitauki
 
 import kotlin.math.abs
 
@@ -17,7 +17,7 @@ data class FlickKey(
 ) {
     fun getChar(gesture: Gesture): String? {
         if (gesture.isTap) return tap
-        
+
         val options = mutableListOf<Pair<Double, String>>()
         right?.let { options.add(0.0 to it) }
         dr?.let { options.add(45.0 to it) }
@@ -27,17 +27,17 @@ data class FlickKey(
         ul?.let { options.add(225.0 to it) }
         up?.let { options.add(270.0 to it) }
         ur?.let { options.add(315.0 to it) }
-        
+
         if (options.isEmpty()) return tap
 
-        // Find the direction with the minimum angular distance
         return options.minByOrNull { (angle, _) ->
             val diff = abs(gesture.angle - angle) % 360
-            val normalizedDiff = if (diff > 180) 360 - diff else diff
-            normalizedDiff
+            if (diff > 180) 360 - diff else diff
         }?.second
     }
 
-    val is8Way: Boolean 
+    val is8Way: Boolean
         get() = ul != null || ur != null || dl != null || dr != null
 }
+
+enum class KeyboardMode { LOWER, TITLE, UPPER, NUM, QWERTY }

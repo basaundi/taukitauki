@@ -13,5 +13,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "FlickKeyboard"
+rootProject.name = "TaukiTauki"
 include(":app")

@@ -1,0 +1,39 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background rounded rect -->
+  <rect x="0" y="0" width="512" height="512" rx="96" fill="#1a1a2e"/>
+
+  <!-- Key grid plate -->
+  <rect x="44" y="148" width="424" height="240" rx="14" fill="#12121f"/>
+
+  <!-- Row 1 keys -->
+  <rect x="54"  y="157" width="124" height="96" rx="10" fill="#23233a"/>
+  <rect x="188" y="157" width="124" height="96" rx="10" fill="#23233a"/>
+  <rect x="322" y="157" width="146" height="96" rx="10" fill="#1565C0"/>
+
+  <!-- Row 2 keys -->
+  <rect x="54"  y="261" width="124" height="96" rx="10" fill="#23233a"/>
+  <rect x="188" y="261" width="124" height="96" rx="10" fill="#23233a"/>
+  <rect x="322" y="261" width="146" height="96" rx="10" fill="#23233a"/>
+
+  <!-- Center labels row 1 -->
+  <text x="116" y="218" text-anchor="middle" font-family="sans-serif" font-size="34" font-weight="700" fill="#ffffff">ta</text>
+  <text x="250" y="218" text-anchor="middle" font-family="sans-serif" font-size="34" font-weight="700" fill="#ffffff">na</text>
+  <text x="395" y="220" text-anchor="middle" font-family="sans-serif" font-size="38" fill="#ffffff">⏎</text>
+
+  <!-- Center labels row 2 -->
+  <text x="116" y="322" text-anchor="middle" font-family="sans-serif" font-size="34" font-weight="700" fill="#ffffff">ba</text>
+  <text x="250" y="322" text-anchor="middle" font-family="sans-serif" font-size="34" font-weight="700" fill="#ffffff">sa</text>
+  <text x="395" y="322" text-anchor="middle" font-family="sans-serif" font-size="30" fill="#aaaacc">␣</text>
+
+  <!-- Flick micro-hints on ta key -->
+  <text x="116" y="172" text-anchor="middle" font-family="sans-serif" font-size="15" fill="#5566bb">tu</text>
+  <text x="116" y="244" text-anchor="middle" font-family="sans-serif" font-size="15" fill="#5566bb">to</text>
+  <text x="63"  y="209" text-anchor="middle" font-family="sans-serif" font-size="15" fill="#5566bb">ti</text>
+  <text x="169" y="209" text-anchor="middle" font-family="sans-serif" font-size="15" fill="#5566bb">t</text>
+
+  <!-- App name -->
+  <text x="256" y="116" text-anchor="middle" font-family="sans-serif" font-size="48" font-weight="700" fill="#ffffff" letter-spacing="2">TaukiTauki</text>
+
+  <!-- Tagline -->
+  <text x="256" y="430" text-anchor="middle" font-family="sans-serif" font-size="26" fill="#5566bb">euskal teklatua</text>
+</svg>

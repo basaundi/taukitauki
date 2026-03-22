@@ -41,3 +41,5 @@ data class FlickKey(
 }
 
 enum class KeyboardMode { LOWER, TITLE, UPPER, NUM, QWERTY }
+
+val KeyboardMode.isQwerty get() = this == KeyboardMode.QWERTY

@@ -25,11 +25,12 @@ class TaukiTaukiService : InputMethodService() {
 
     private var composingWord = StringBuilder()
     private var currentMode = KeyboardMode.LOWER
-    private var lastMode = KeyboardMode.LOWER  // tracks mode before NUM so we can restore it
+    private var lastMode = KeyboardMode.LOWER
+    private var qwertyActive = false   // true when QWERTY layout is shown
     private var lastInput: String = ""
+    private var lastInputMode: KeyboardMode = KeyboardMode.LOWER
     private var lastCommittedWord: String = ""
 
-    // Used to detect double-tap on the ⇧ (TITLE) key to engage UPPER mode
     private var lastShiftTapMs: Long = 0L
     private val doubleTapWindowMs = 400L
 
@@ -53,8 +54,11 @@ class TaukiTaukiService : InputMethodService() {
         "x" to "tx", "tx" to "x", "r" to "rr", "rr" to "r",
         "m" to "j", "j" to "m", "h" to "",
         "a" to "ha", "e" to "he", "i" to "hi", "o" to "ho", "u" to "hu", "ü" to "hü",
-        "(" to ")", ")" to "(", "\"" to "'", "'" to "\"", "{" to "}", "}" to "{",
-        "<" to ">", ">" to "<", "[" to "]", "]" to "[", "/" to "\\", "\\" to "/",
+        "ha" to "a", "he" to "e", "hi" to "i", "ho" to "o", "hu" to "u", "hü" to "ü",
+        "(" to ")", ")" to "(", "\"" to "'", "'" to "\"",
+        "{" to "}", "}" to "{",
+        "<" to ">", ">" to "<", "[" to "]", "]" to "[",
+        "/" to "\\", "\\" to "/",
         "-" to "_", "_" to "-", "?" to "¿", "¿" to "?", "!" to "¡", "¡" to "!",
     )
 
@@ -91,37 +95,16 @@ class TaukiTaukiService : InputMethodService() {
         Pair(3, 3) to FlickKey(".", ",", ":", ";", "/", ul = "(", ur = ")", dl = "[", dr = "]")
     )
 
-    private val qwertyLayout = mapOf(
-        // Row 0: q w e r t
-        Pair(0, 0) to FlickKey("q"),
-        Pair(0, 1) to FlickKey("w"),
-        Pair(0, 2) to FlickKey("e", ur = "è", ul = "é", dr = "ë", dl = "ê"),
-        Pair(0, 3) to FlickKey("r"),
-        Pair(0, 4) to FlickKey("t"),
-        // Row 1: y u i o p
-        Pair(1, 0) to FlickKey("y"),
-        Pair(1, 1) to FlickKey("u", ur = "ú", ul = "ü", dr = "û", dl = "ù"),
-        Pair(1, 2) to FlickKey("i", ur = "í", ul = "ï", dl = "ì"),
-        Pair(1, 3) to FlickKey("o", ur = "ó", ul = "ö", dr = "ô", dl = "ò"),
-        Pair(1, 4) to FlickKey("p"),
-        // Row 2: a s d f g  (⇧ at 2,0 is drawn by the view as a special key)
-        Pair(2, 0) to FlickKey("⇧"),
-        Pair(2, 1) to FlickKey("a", ur = "á", ul = "ä", dr = "â", dl = "à"),
-        Pair(2, 2) to FlickKey("s"),
-        Pair(2, 3) to FlickKey("d"),
-        Pair(2, 4) to FlickKey("f"),
-        // Row 3: mode swap h j k  (mode at 3,0; swap at 3,1; then h j k)
-        Pair(3, 2) to FlickKey("h"),
-        Pair(3, 3) to FlickKey("j", up = "k", down = "l", left = "n", right = "m",
-                                ul = "ñ", ur = "ç", dl = "x", dr = "z"),
-        Pair(3, 4) to FlickKey(", ", "? ", ". ", "-", "! ", ur = "@", ul = "%", dr = "*", dl = "+")
+    // QWERTY characters by [row][col]; null = special key handled in handleQwertyAction.
+    // Row 0: q w e r t y u i o p  (10 keys, cols 0-9)
+    // Row 1: a s d f g h j k l    (9 keys,  cols 0-8)
+    // Row 2: shift z x c v b n m backspace  (9 slots — col 0 = shift, col 8 = backspace)
+    // Row 3: mode , space(double) . left right enter  (8 slots, spacebar spans slots 2-3)
+    private val qwertyChars = listOf(
+        listOf("q","w","e","r","t","y","u","i","o","p"),
+        listOf("a","s","d","f","g","h","j","k","l"),
+        listOf<String?>(null,"z","x","c","v","b","n","m",null)
     )
-
-    private fun layoutForMode(mode: KeyboardMode) = when (mode) {
-        KeyboardMode.NUM   -> numLayout
-        KeyboardMode.QWERTY -> qwertyLayout
-        else               -> basqueLayout
-    }
 
     // ─── Lifecycle ────────────────────────────────────────────────────────────
 
@@ -162,53 +145,87 @@ class TaukiTaukiService : InputMethodService() {
             }
         }
 
-        keyboardView.keyActionListener  = { r, c, gesture -> handleAction(r, c, gesture) }
+        keyboardView.keyActionListener = { r, c, gesture -> handleAction(r, c, gesture) }
         keyboardView.backspaceListener  = { handleBackspace() }
         keyboardView.longPressListener  = { r, c ->
-            if (r == 2 && c == 4) {
+            val isPickerCell = (!qwertyActive && r == 2 && c == 4) ||
+                               (qwertyActive && r == 3 && c == 5)
+            if (isPickerCell) {
                 (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).showInputMethodPicker()
             }
         }
 
-        val suggestionClickListener = View.OnClickListener { v ->
-            val suggestion = (v as TextView).text.toString()
-            if (suggestion.isNotEmpty()) {
-                commitWord(applyCase(suggestion))
+        suggestions.forEach { tv ->
+            tv.setOnClickListener { v ->
+                val suggestion = (v as TextView).text.toString()
+                if (suggestion.isNotEmpty()) commitWord(applyCase(suggestion))
             }
         }
-        suggestions.forEach { it.setOnClickListener(suggestionClickListener) }
 
         updatePasteButtonVisibility()
         refreshKeyboardModeUI()
         return root
     }
 
-    // ─── Input handling ───────────────────────────────────────────────────────
+    // ─── Action routing ───────────────────────────────────────────────────────
 
     private fun handleAction(r: Int, c: Int, gesture: Gesture) {
+        if (qwertyActive) {
+            handleQwertyAction(r, c, gesture)
+        } else {
+            handleBasqueAction(r, c, gesture)
+        }
+    }
+
+    private fun handleBasqueAction(r: Int, c: Int, gesture: Gesture) {
         val ic = currentInputConnection ?: return
-
         when {
-            // Shift / UPPER toggle
-            r == 2 && c == 0 && currentMode != KeyboardMode.NUM -> handleShiftTap()
-
-            // Navigation & control
+            r == 2 && c == 0 -> handleShiftTap()
             r == 1 && c == 0 -> { commitCurrent(); ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_LEFT));  updateCapsMode() }
             r == 1 && c == 4 -> { commitCurrent(); ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_RIGHT)); updateCapsMode() }
             r == 2 && c == 4 -> { commitCurrent(); ic.commitText(" ", 1); updateCapsMode() }
             r == 3 && c == 4 -> { commitCurrent(); ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER)); updateCapsMode() }
             r == 3 && c == 0 -> cycleMode()
             r == 3 && c == 1 -> performMutation()
-
-            // Character input
             else -> handleCharInput(r, c, gesture)
         }
     }
 
+    private fun handleQwertyAction(r: Int, c: Int, gesture: Gesture) {
+        val ic = currentInputConnection ?: return
+        when {
+            r == 2 && c == 0 -> handleShiftTap()
+            r == 3 && c == 0 -> cycleMode()
+            r == 3 && c == 1 -> { commitCurrent(); ic.commitText(",", 1); updateCapsMode() }
+            r == 3 && c == 2 -> { commitCurrent(); ic.commitText(" ", 1); updateCapsMode() }
+            r == 3 && c == 4 -> { commitCurrent(); ic.commitText(".", 1); updateCapsMode() }
+            r == 3 && c == 5 -> { commitCurrent(); ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_LEFT));  updateCapsMode() }
+            r == 3 && c == 6 -> { commitCurrent(); ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_RIGHT)); updateCapsMode() }
+            r == 3 && c == 7 -> { commitCurrent(); ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER)); updateCapsMode() }
+            else -> {
+                val ch = qwertyChars.getOrNull(r)?.getOrNull(c) ?: return
+                var s = applyCase(ch)
+                if (currentMode == KeyboardMode.TITLE && s.any { it.isLetter() }) {
+                    currentMode = KeyboardMode.LOWER
+                    refreshKeyboardModeUI()
+                }
+                ic.beginBatchEdit()
+                if (!s.any { it.isLetter() }) commitCurrent()
+                else if (composingWord.isNotEmpty() && !composingWord.any { it.isLetter() }) commitCurrent()
+                composingWord.append(s)
+                lastInput = s
+                lastInputMode = currentMode
+                updateUI()
+                ic.endBatchEdit()
+            }
+        }
+    }
+
+    // ─── Shift / UPPER ────────────────────────────────────────────────────────
+
     private fun handleShiftTap() {
         val now = System.currentTimeMillis()
         val isDoubleTap = (now - lastShiftTapMs) < doubleTapWindowMs
-
         currentMode = when {
             isDoubleTap && currentMode == KeyboardMode.TITLE -> KeyboardMode.UPPER
             currentMode == KeyboardMode.UPPER               -> KeyboardMode.LOWER
@@ -219,47 +236,46 @@ class TaukiTaukiService : InputMethodService() {
         refreshKeyboardModeUI()
     }
 
+    // ─── Character input (Basque / Num) ───────────────────────────────────────
+
     private fun handleCharInput(r: Int, c: Int, gesture: Gesture) {
         val ic = currentInputConnection ?: return
-        val layout = layoutForMode(currentMode)
+        val layout = if (currentMode == KeyboardMode.NUM) numLayout else basqueLayout
         val key = layout[Pair(r, c)] ?: return
         var s = key.getChar(gesture) ?: return
 
         s = applyCase(s)
-        // After applying case for a single typed char, step down from TITLE to LOWER
         if (currentMode == KeyboardMode.TITLE && s.any { it.isLetter() }) {
             currentMode = KeyboardMode.LOWER
             refreshKeyboardModeUI()
         }
 
         ic.beginBatchEdit()
-        // Commit composing buffer if we're switching from letters to non-letters or vice-versa
-        if (!s.any { it.isLetter() }) {
-            commitCurrent()
-        } else if (composingWord.isNotEmpty() && !composingWord.any { it.isLetter() }) {
-            commitCurrent()
-        }
+        if (!s.any { it.isLetter() }) commitCurrent()
+        else if (composingWord.isNotEmpty() && !composingWord.any { it.isLetter() }) commitCurrent()
         composingWord.append(s)
         lastInput = s
+        lastInputMode = currentMode
         updateUI()
         ic.endBatchEdit()
     }
 
-    // ─── Case helpers ─────────────────────────────────────────────────────────
+    // ─── Case ─────────────────────────────────────────────────────────────────
 
     private fun applyCase(s: String): String = when (currentMode) {
-        KeyboardMode.UPPER  -> s.uppercase()
-        KeyboardMode.TITLE  -> s.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
-        else                -> s.lowercase()
+        KeyboardMode.UPPER -> s.uppercase()
+        KeyboardMode.TITLE -> s.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+        else               -> s.lowercase()
     }
 
-    // ─── Commit helpers ───────────────────────────────────────────────────────
+    // ─── Commit ───────────────────────────────────────────────────────────────
 
     private fun commitCurrent() {
         if (composingWord.isNotEmpty()) {
             currentInputConnection?.commitText(composingWord.toString(), 1)
             composingWord.setLength(0)
             lastInput = ""
+            lastInputMode = KeyboardMode.LOWER
         }
     }
 
@@ -269,6 +285,7 @@ class TaukiTaukiService : InputMethodService() {
             currentInputConnection?.commitText("$word ", 1)
             composingWord.setLength(0)
             lastInput = ""
+            lastInputMode = KeyboardMode.LOWER
             updateUI()
             updateCapsMode()
         }
@@ -278,18 +295,31 @@ class TaukiTaukiService : InputMethodService() {
 
     private fun getMutationTarget(input: String): String? {
         if (input.isEmpty()) return null
+        val key = input.lowercase()
+
+        // 1. Direct lookup (pure vowels, h-prefixed vowels, digraphs like "tz")
+        mutationMap[key]?.let { return applyInputCase(it) }
+
+        // 2. Syllable lookup: strip trailing vowel, look up consonant, reattach vowel
         val vowelRegex = "[aeiouüAEIOUÜ]$".toRegex()
         val vowelMatch = vowelRegex.find(input)
-        val vowel = vowelMatch?.value ?: ""
-        val base = if (vowel.isNotEmpty()) input.dropLast(vowel.length) else input
-        val targetLower = mutationMap[base.lowercase()] ?: return null
-
-        val cased = when {
-            base.all { it.isUpperCase() } -> targetLower.uppercase()
-            base.firstOrNull()?.isUpperCase() == true -> targetLower.replaceFirstChar { it.uppercase() }
-            else -> targetLower
+        if (vowelMatch != null) {
+            val vowel = vowelMatch.value
+            val base  = input.dropLast(vowel.length)
+            if (base.isNotEmpty()) {
+                mutationMap[base.lowercase()]?.let { return applyInputCase(it) + vowel }
+            }
         }
-        return cased + vowel
+
+        return null
+    }
+
+    // Case is determined by the mode active when lastInput was typed, not by inspecting
+    // the character — so "A" typed in TITLE and UPPER are correctly distinguished.
+    private fun applyInputCase(targetLower: String): String = when (lastInputMode) {
+        KeyboardMode.UPPER -> targetLower.uppercase()
+        KeyboardMode.TITLE -> targetLower.replaceFirstChar { it.uppercase() }
+        else               -> targetLower
     }
 
     private fun performMutation() {
@@ -305,17 +335,27 @@ class TaukiTaukiService : InputMethodService() {
     // ─── Caps-mode auto-detect ────────────────────────────────────────────────
 
     private fun updateCapsMode() {
-        val ic = currentInputConnection ?: return
+        val ic   = currentInputConnection ?: return
         val info = currentInputEditorInfo ?: return
+        // NUM and UPPER are never auto-switched by caps mode.
+        // QWERTY is allowed to transition between LOWER and TITLE (capitalisation),
+        // but updateCapsMode must never switch *away* from QWERTY to a different layout.
         if (currentMode == KeyboardMode.NUM || currentMode == KeyboardMode.UPPER) return
 
         val caps = ic.getCursorCapsMode(info.inputType)
-        val shouldCap = (caps and (TextUtils.CAP_MODE_SENTENCES or TextUtils.CAP_MODE_CHARACTERS or TextUtils.CAP_MODE_WORDS)) != 0
+        val shouldCap = (caps and (TextUtils.CAP_MODE_SENTENCES or
+                                   TextUtils.CAP_MODE_CHARACTERS or
+                                   TextUtils.CAP_MODE_WORDS)) != 0
 
         if (composingWord.isEmpty()) {
+            // In QWERTY we only ever toggle between LOWER and TITLE — never leave QWERTY.
+            // In Basque we do the same but lastMode also drives the cycle-back after NUM.
             val newMode = if (shouldCap) KeyboardMode.TITLE else KeyboardMode.LOWER
             if (currentMode != newMode) {
                 currentMode = newMode
+                // Keep lastMode in sync so cycle-back from NUM returns to the right state,
+                // but only when we are in Basque mode (lastMode drives cycle-back from NUM).
+                if (!qwertyActive) lastMode = newMode
                 refreshKeyboardModeUI()
             }
         }
@@ -324,15 +364,15 @@ class TaukiTaukiService : InputMethodService() {
     // ─── Suggestions ──────────────────────────────────────────────────────────
 
     private fun updateUI() {
-        val ic = currentInputConnection ?: return
+        val ic   = currentInputConnection ?: return
         val word = composingWord.toString()
         ic.setComposingText(word, 1)
 
         dbExecutor.execute {
             val preds: List<String> = when {
-                word.isNotEmpty() -> dbHelper.getSuggestions(word.lowercase())
+                word.isNotEmpty()              -> dbHelper.getSuggestions(word.lowercase())
                 lastCommittedWord.isNotEmpty() -> dbHelper.getBigramSuggestions(lastCommittedWord)
-                else -> emptyList()
+                else                           -> emptyList()
             }
             uiHandler.post {
                 if (composingWord.toString() == word) {
@@ -354,14 +394,16 @@ class TaukiTaukiService : InputMethodService() {
 
     private fun refreshKeyboardModeUI() {
         if (!::keyboardView.isInitialized) return
-        keyboardView.currentMode  = currentMode
-        keyboardView.layoutMap    = layoutForMode(currentMode)
-        keyboardView.modeLabel    = when (currentMode) {
-            KeyboardMode.LOWER  -> getString(R.string.mode_lower)
-            KeyboardMode.TITLE  -> getString(R.string.mode_title)
-            KeyboardMode.UPPER  -> getString(R.string.mode_upper)
-            KeyboardMode.NUM    -> getString(R.string.mode_number)
-            KeyboardMode.QWERTY -> getString(R.string.mode_qwerty)
+        keyboardView.currentMode = currentMode
+        keyboardView.qwertyActive = qwertyActive
+        // layoutMap is only used for Basque/Num; QWERTY has its own draw path
+        keyboardView.layoutMap = if (currentMode == KeyboardMode.NUM) numLayout else basqueLayout
+        keyboardView.modeLabel = when {
+            qwertyActive              -> getString(R.string.mode_qwerty)
+            currentMode == KeyboardMode.NUM   -> getString(R.string.mode_number)
+            currentMode == KeyboardMode.UPPER -> getString(R.string.mode_upper)
+            currentMode == KeyboardMode.TITLE -> getString(R.string.mode_title)
+            else                              -> getString(R.string.mode_lower)
         }
         keyboardView.invalidate()
     }
@@ -374,23 +416,32 @@ class TaukiTaukiService : InputMethodService() {
     // ─── Mode cycling ─────────────────────────────────────────────────────────
 
     private fun cycleMode() {
-        currentMode = when (currentMode) {
-            KeyboardMode.LOWER, KeyboardMode.TITLE, KeyboardMode.UPPER -> {
-                lastMode = currentMode
-                KeyboardMode.NUM
+        when {
+            currentMode == KeyboardMode.NUM -> {
+                // NUM -> QWERTY (keep current case mode)
+                qwertyActive = true
             }
-            KeyboardMode.NUM    -> KeyboardMode.QWERTY
-            KeyboardMode.QWERTY -> lastMode.takeIf { it != KeyboardMode.NUM } ?: KeyboardMode.LOWER
+            qwertyActive -> {
+                // QWERTY -> back to Basque (restore lastMode)
+                qwertyActive = false
+                currentMode = lastMode.takeIf { it != KeyboardMode.NUM } ?: KeyboardMode.LOWER
+            }
+            else -> {
+                // Basque LOWER/TITLE/UPPER -> NUM
+                lastMode = currentMode
+                currentMode = KeyboardMode.NUM
+            }
         }
         refreshKeyboardModeUI()
     }
 
-    // ─── InputMethodService callbacks ────────────────────────────────────────
+    // ─── InputMethodService callbacks ─────────────────────────────────────────
 
     override fun onStartInput(attribute: EditorInfo?, restarting: Boolean) {
         super.onStartInput(attribute, restarting)
         composingWord.setLength(0)
         lastInput = ""
+        lastInputMode = KeyboardMode.LOWER
         lastCommittedWord = ""
         updateUI()
     }
@@ -399,6 +450,7 @@ class TaukiTaukiService : InputMethodService() {
         super.onFinishInput()
         composingWord.setLength(0)
         lastInput = ""
+        lastInputMode = KeyboardMode.LOWER
         updateUI()
     }
 
@@ -417,6 +469,7 @@ class TaukiTaukiService : InputMethodService() {
         if (composingWord.isNotEmpty() && candidatesStart == -1 && candidatesEnd == -1) {
             composingWord.setLength(0)
             lastInput = ""
+            lastInputMode = KeyboardMode.LOWER
             updateUI()
         }
         updateCapsMode()
@@ -426,6 +479,7 @@ class TaukiTaukiService : InputMethodService() {
         if (composingWord.isNotEmpty()) {
             composingWord.deleteCharAt(composingWord.length - 1)
             lastInput = ""
+            lastInputMode = KeyboardMode.LOWER
             updateUI()
         } else {
             currentInputConnection?.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DEL))

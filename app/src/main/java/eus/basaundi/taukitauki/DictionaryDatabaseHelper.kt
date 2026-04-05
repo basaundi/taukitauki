@@ -37,8 +37,11 @@ class DictionaryDatabaseHelper(private val context: Context) : SQLiteOpenHelper(
         if (prefix.isBlank()) return emptyList()
         val suggestions = mutableListOf<String>()
         try {
+            // Prefer proper names (is_proper=1) first, then sort by frequency.
+            // This surfaces "Bilbo" before "bilbo" when the prefix matches both.
             readableDatabase.rawQuery(
-                "SELECT word FROM words WHERE word LIKE ? ORDER BY frequency DESC LIMIT ?",
+                "SELECT word FROM words WHERE word LIKE ? " +
+                "ORDER BY is_proper DESC, frequency DESC LIMIT ?",
                 arrayOf("$prefix%", limit.toString())
             ).use { cursor ->
                 while (cursor.moveToNext()) suggestions.add(cursor.getString(0))

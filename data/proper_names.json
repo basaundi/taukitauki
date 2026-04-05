@@ -1,0 +1,35 @@
+{
+  "_comment": "Proper names that should be capitalised in suggestions. Add people, places, institutions.",
+
+  "people": [
+    "Amaia", "Iker", "Miren", "Unai", "Ane", "Jokin", "Leire", "Asier",
+    "Nerea", "Mikel", "Izaro", "Andoni", "Itziar", "Gorka", "Ainhoa", "Eneko",
+    "Maite", "Xabier", "Garazi", "Imanol", "Uxue", "Julen", "Naroa", "Oier",
+    "Ander", "Yui", "Iñigo", "Markel", "Rakel", "Fernando", "Elisa"
+  ],
+
+  "places_basque_country": [
+    "Bilbo", "Donostia", "Gasteiz", "Iruñea", "Baiona", "Maulea",
+    "Gernika", "Durango", "Eibar", "Arrasate", "Bergara", "Tolosa",
+    "Zarautz", "Getaria", "Zumaia", "Ondarroa", "Lekeitio", "Bermeo",
+    "Mungia", "Igorre", "Abadiño", "Elorrio", "Otxandio", "Laudio",
+    "Amurrio", "Llodio", "Zumarraga", "Urretxu", "Azpeitia", "Azkoitia",
+    "Oñati", "Beasain", "Ordizia", "Hernani", "Errenteria", "Lezo",
+    "Pasaia", "Irun", "Hondarribia", "Andoain", "Villabona", "Usurbil",
+    "Orio", "Zestoa", "Deba", "Mutriku", "Elgoibar", "Soraluze",
+    "Bizkaia", "Gipuzkoa", "Araba", "Nafarroa", "Lapurdi", "Zuberoa", "Nafarroa Beherea"
+  ],
+
+  "places_other": [
+    "Espainia", "Frantzia", "Italia", "Portugal", "Alemania", "Erresuma Batua",
+    "Madril", "Bartzelona", "Paris", "Londres", "Erroma", "Berlina",
+    "Europa", "Amerika", "Afrika", "Asia", "Ozeania",
+    "Mediterraneo", "Atlantikoa", "Bizkaiko Golkoa"
+  ],
+
+  "institutions": [
+    "Eusko Jaurlaritza", "Foru Aldundia",
+    "EHU", "Mondragon Unibertsitatea", "Deustu", "HABE", "Euskaltzaindia",
+    "EiTB", "Berria", "Argia", "Euskaldunon Egunkaria"
+  ]
+}

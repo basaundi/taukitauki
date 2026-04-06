@@ -30,6 +30,7 @@ class TaukiTaukiService : InputMethodService() {
     private var lastInput: String = ""
     private var lastInputMode: KeyboardMode = KeyboardMode.LOWER
     private var lastCommittedWord: String = ""
+    @Volatile private var suggestionSeq: Int = 0  // incremented on every updateUI call
 
     private var lastShiftTapMs: Long = 0L
     private val doubleTapWindowMs = 400L
@@ -95,20 +96,49 @@ class TaukiTaukiService : InputMethodService() {
         Pair(3, 3) to FlickKey(".", ",", ":", ";", "/", ul = "(", ur = ")", dl = "[", dr = "]")
     )
 
-    // QWERTY characters by [row][col]; null = special key handled in handleQwertyAction.
-    // Row 0: q w e r t y u i o p  (10 keys, cols 0-9)
-    // Row 1: a s d f g h j k l    (9 keys,  cols 0-8)
-    // Row 2: shift z x c v b n m backspace  (9 slots — col 0 = shift, col 8 = backspace)
-    // Row 3: mode , space(double) . left right enter  (8 slots, spacebar spans slots 2-3)
-    // QWERTY tap characters. Row 0 also supports flick-up for digits 1-0.
-    private val qwertyChars = listOf(
-        listOf("q","w","e","r","t","y","u","i","o","p"),
-        listOf("a","s","d","f","g","h","j","k","l"),
-        listOf<String?>(null,"z","x","c","v","b","n","m",null)
+    // QWERTY layout as a FlickKey grid.
+    // Rows 0-2 only (row 3 bottom bar is handled entirely by handleQwertyAction).
+    // tap = the letter; up = digit (row 0) or symbol; other directions = accents / punctuation.
+    // null entries = shift (2,0) and backspace (2,8) — handled separately.
+    private val qwertyLayout: List<List<FlickKey?>> = listOf(
+        // Row 0: q  w  e  r  t  y  u  i  o  p
+        listOf(
+            FlickKey("q", up="1", down="!", left="~",  right="@",  ul="`",  ur="\u00a1", dl="\\", dr="#"),
+            FlickKey("w", up="2", down="?", left="<",  right=">",  ul="\u00ab", ur="\u00bb", dl="{",  dr="}"),
+            FlickKey("e", up="3", down="\u20ac", left="\u00e8", right="\u00e9", ul="\u00ea", ur="\u00eb", dl="\u011b", dr="\u1ebd"),
+            FlickKey("r", up="4", down="\u00ae", left="(",  right=")",  ul="[",  ur="]", dl="{",  dr="}"),
+            FlickKey("t", up="5", down="+", left="\u2013", right="\u2014", ul="\u2022", ur="\u2020", dl="\u2021", dr="\u00d7"),
+            FlickKey("y", up="6", down="\u00a5", left="\u00fd", right="\u00ff", ul="^",  ur="&", dl="|",  dr="\u00f7"),
+            FlickKey("u", up="7", down="_", left="\u00f9", right="\u00fa", ul="\u00fb", ur="\u00fc", dl="\u016b", dr="\u0169"),
+            FlickKey("i", up="8", down="=", left="\u00ec", right="\u00ed", ul="\u00ee", ur="\u00ef", dl="\u0129", dr="\u012b"),
+            FlickKey("o", up="9", down="\u00b0", left="\u00f2", right="\u00f3", ul="\u00f4", ur="\u00f6", dl="\u00f5", dr="\u00f8"),
+            FlickKey("p", up="0", down="%", left="\u03c0", right="\u00a7", ul="\u00a3", ur="\u00b6", dl="\u00bf", dr="\u00a2"),
+        ),
+        // Row 1: a  s  d  f  g  h  j  k  l
+        listOf(
+            FlickKey("a", up="@", down="\u00e0", left="\u00e1", right="\u00e2", ul="\u00e4", ur="\u00e3", dl="\u00e5", dr="\u00e6"),
+            FlickKey("s", up="$", down="\u00df", left="/",  right="\\", ul="\u015b", ur="\u0161", dl="\u015f", dr="\u0219"),
+            FlickKey("d", up="#", down="\u00f0", left=":",  right=";",  ul="\u010f", ur="\u0111", dl="\u201e", dr="\u201d"),
+            FlickKey("f", up="!", down="\u0192", left="\u2018", right="\u2019", ul="\u201c", ur="\u00ab", dl="\u00bb", dr="\u2039"),
+            FlickKey("g", up="&", down="\u011f", left="{",  right="}",  ul="\u011d", ur="\u0121", dl="\u0123", dr="\u03b3"),
+            FlickKey("h", up="*", down="\u0127", left="-",  right="+",  ul="\u0125", ur="\u1e25", dl="\u00b2", dr="\u00b3"),
+            FlickKey("j", up="=", down="\u0135", left="<",  right=">",  ul="\u201e", ur="\u201d", dl="\u201a", dr="\u2019"),
+            FlickKey("k", up="(", down="\u0137", left="[",  right="]",  ul="\u03ba", ur="\u0138", dl="\u221a", dr="\u221e"),
+            FlickKey("l", up=")", down="\u0142", left="\u03bb", right="\u00a3", ul="\u013a", ur="\u013c", dl="\u013e", dr="\u2113"),
+        ),
+        // Row 2: null=shift, z x c v b n m, null=backspace
+        listOf(
+            null,
+            FlickKey("z", up="!", down="\u017a", left="\u03b6", right="\u017c", ul="\u017e", ur="\u2124", dl="\u2070", dr="\u00b9"),
+            FlickKey("x", up="?", down="\u00d7", left="\u03be", right="\u03c7", ul="\u207b", ur="\u207a", dl="\u2081", dr="\u2082"),
+            FlickKey("c", up=":", down="\u00e7", left="\u0107", right="\u010d", ul="\u00a9", ur="\u00a2", dl="\u0109", dr="\u010b"),
+            FlickKey("v", up=";", down="\u221a", left="\u2039", right="\u203a", ul="\u00ab", ur="\u00bb", dl="\u2228", dr="\u2227"),
+            FlickKey("b", up="-", down="\u03b2", left="(",  right=")",  ul="[",  ur="]", dl="\u222b", dr="\u2202"),
+            FlickKey("n", up="_", down="\u00f1", left="\u0144", right="\u0148", ul="\u0146", ur="\u014b", dl="\u03bd", dr="\u2229"),
+            FlickKey("m", up="*", down="\u00b5", left="<",  right=">",  ul="(",  ur=")", dl="\u2208", dr="\u2211"),
+            null,
+        )
     )
-    // Digits mapped to row-0 flick-up (col 0-9 → 1 2 3 4 5 6 7 8 9 0)
-    private val qwertyDigits = listOf("1","2","3","4","5","6","7","8","9","0")
-
     // ─── Lifecycle ────────────────────────────────────────────────────────────
 
     override fun onCreate() {
@@ -166,10 +196,7 @@ class TaukiTaukiService : InputMethodService() {
         suggestions.forEach { tv ->
             tv.setOnClickListener { v ->
                 val suggestion = (v as TextView).text.toString()
-                if (suggestion.isNotEmpty()) {
-                    if (isEmoji(suggestion)) commitEmoji(suggestion)
-                    else commitWord(applyCase(suggestion))
-                }
+                if (suggestion.isNotEmpty()) commitWord(applyCase(suggestion))
             }
         }
 
@@ -214,17 +241,12 @@ class TaukiTaukiService : InputMethodService() {
             r == 3 && c == 6 -> { commitCurrent(); ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_RIGHT)); updateCapsMode() }
             r == 3 && c == 7 -> { commitCurrent(); ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER)); updateCapsMode() }
             else -> {
-                // Row 0 flick-up → digit (1-0), bypasses case transformation
-                val isFlickUp = r == 0 && !gesture.isTap && run {
-                    val a = ((gesture.angle % 360) + 360) % 360
-                    a in 225.0..315.0
-                }
-                val raw = if (isFlickUp) qwertyDigits.getOrNull(c)
-                          else qwertyChars.getOrNull(r)?.getOrNull(c)
-                raw ?: return
-                val isDigit = raw.all { it.isDigit() }
-                var s = if (isDigit) raw else applyCase(raw)
-                if (!isDigit && currentMode == KeyboardMode.TITLE && s.any { it.isLetter() }) {
+                val key = qwertyLayout.getOrNull(r)?.getOrNull(c) ?: return
+                val raw = key.getChar(gesture) ?: return
+                val isLetter = raw.any { it.isLetter() }
+                // Letters respect case mode; symbols/digits are committed as-is
+                var s = if (isLetter) applyCase(raw) else raw
+                if (isLetter && currentMode == KeyboardMode.TITLE) {
                     currentMode = KeyboardMode.LOWER
                     refreshKeyboardModeUI()
                 }
@@ -233,7 +255,7 @@ class TaukiTaukiService : InputMethodService() {
                 else if (composingWord.isNotEmpty() && !composingWord.any { it.isLetter() }) commitCurrent()
                 composingWord.append(s)
                 lastInput = s
-                lastInputMode = if (isDigit) KeyboardMode.LOWER else currentMode
+                lastInputMode = if (isLetter) currentMode else KeyboardMode.LOWER
                 updateUI()
                 ic.endBatchEdit()
             }
@@ -291,10 +313,13 @@ class TaukiTaukiService : InputMethodService() {
 
     private fun commitCurrent() {
         if (composingWord.isNotEmpty()) {
-            currentInputConnection?.commitText(composingWord.toString(), 1)
+            val committed = composingWord.toString()
+            currentInputConnection?.commitText(committed, 1)
+            lastCommittedWord = committed.trimEnd().lowercase()
             composingWord.setLength(0)
             lastInput = ""
             lastInputMode = KeyboardMode.LOWER
+            updateUI()   // triggers bigram suggestions for the just-committed word
         }
     }
 
@@ -308,30 +333,6 @@ class TaukiTaukiService : InputMethodService() {
             updateUI()
             updateCapsMode()
         }
-    }
-
-    // ─── Emoji helpers ───────────────────────────────────────────────────────────
-
-    // A string counts as an emoji suggestion if every code point is outside the Basic
-    // Multilingual Plane (i.e. supplementary) or is a known emoji modifier/combiner.
-    // Simple heuristic: check if the first code point has type SURROGATE or is ≥ U+2000.
-    private fun isEmoji(s: String): Boolean {
-        if (s.isEmpty()) return false
-        val cp = s.codePointAt(0)
-        return cp >= 0x2000  // covers all emoji ranges (symbols, pictographs, etc.)
-    }
-
-    // Commit an emoji: discard the composing word and insert emoji + space.
-    private fun commitEmoji(emoji: String) {
-        val ic = currentInputConnection ?: return
-        ic.commitText("", 1)           // clear composing text without committing it
-        ic.commitText("$emoji ", 1)
-        composingWord.setLength(0)
-        lastInput = ""
-        lastInputMode = KeyboardMode.LOWER
-        lastCommittedWord = ""         // emoji doesn't feed bigram prediction
-        updateUI()
-        updateCapsMode()
     }
 
     // ─── Mutation ─────────────────────────────────────────────────────────────
@@ -411,21 +412,28 @@ class TaukiTaukiService : InputMethodService() {
         val word = composingWord.toString()
         ic.setComposingText(word, 1)
 
+        // Increment sequence so any in-flight task from a previous call is discarded.
+        val seq = ++suggestionSeq
+
         dbExecutor.execute {
             val preds: List<String> = when {
                 word.isNotEmpty() -> {
-                    // Merge emoji matches (prefix on name) with word completions.
-                    // Emoji slots: up to 2 at the front; word slots: fill the rest up to 5 total.
                     val prefix = word.lowercase()
-                    val emojis = dbHelper.getEmojiSuggestions(prefix, limit = 2)
-                    val words  = dbHelper.getSuggestions(prefix, limit = 5 - emojis.size)
-                    emojis + words
+                    // Only query emojis once prefix is long enough to be meaningful,
+                    // and cap emoji slots at 2 so words always get at least 3 slots.
+                    val emojis = if (prefix.length >= 3)
+                        dbHelper.getEmojiSuggestions(prefix, limit = 2)
+                    else emptyList()
+                    val words = dbHelper.getSuggestions(prefix, limit = 5 - emojis.size)
+                    // Words first, emojis appended — so word suggestions are never crowded out
+                    words + emojis
                 }
                 lastCommittedWord.isNotEmpty() -> dbHelper.getBigramSuggestions(lastCommittedWord)
                 else                           -> emptyList()
             }
             uiHandler.post {
-                if (composingWord.toString() == word) {
+                // Only apply if this is still the most recent request
+                if (::suggestions.isInitialized && seq == suggestionSeq) {
                     suggestions.forEachIndexed { i, tv -> tv.text = preds.getOrNull(i) ?: "" }
                 }
             }
@@ -446,6 +454,7 @@ class TaukiTaukiService : InputMethodService() {
         if (!::keyboardView.isInitialized) return
         keyboardView.currentMode = currentMode
         keyboardView.qwertyActive = qwertyActive
+        keyboardView.qwertyFlickLayout = qwertyLayout
         // layoutMap is only used for Basque/Num; QWERTY has its own draw path
         val rawLayout = if (currentMode == KeyboardMode.NUM) numLayout else basqueLayout
         keyboardView.layoutMap = KeyFilter.applyToLayout(this, rawLayout)
@@ -494,7 +503,9 @@ class TaukiTaukiService : InputMethodService() {
         lastInput = ""
         lastInputMode = KeyboardMode.LOWER
         lastCommittedWord = ""
-        updateUI()
+        suggestionSeq++
+        // Clear synchronously if the view exists; otherwise it will be cleared in onStartInputView.
+        if (::suggestions.isInitialized) suggestions.forEach { it.text = "" }
     }
 
     override fun onFinishInput() {
@@ -502,11 +513,13 @@ class TaukiTaukiService : InputMethodService() {
         composingWord.setLength(0)
         lastInput = ""
         lastInputMode = KeyboardMode.LOWER
-        updateUI()
+        if (::suggestions.isInitialized) suggestions.forEach { it.text = "" }
     }
 
     override fun onStartInputView(info: EditorInfo, restarting: Boolean) {
         super.onStartInputView(info, restarting)
+        // Clear suggestion strip synchronously — no DB round-trip needed on startup.
+        if (::suggestions.isInitialized) suggestions.forEach { it.text = "" }
         updateCapsMode()
         updatePasteButtonVisibility()
     }

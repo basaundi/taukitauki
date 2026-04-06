@@ -33,47 +33,27 @@ class DictionaryDatabaseHelper(private val context: Context) : SQLiteOpenHelper(
     override fun onCreate(db: SQLiteDatabase) {}
     override fun onUpgrade(db: SQLiteDatabase, old: Int, new: Int) {}
 
+    // ─── Schema introspection ─────────────────────────────────────────────────
+
+    /** True if the words table has an is_proper column (new schema). */
+    private val hasIsProper: Boolean by lazy {
+        try {
+            readableDatabase.rawQuery("SELECT is_proper FROM words LIMIT 1", null)
+                .use { true }
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    // ─── Queries ──────────────────────────────────────────────────────────────
+
     fun getSuggestions(prefix: String, limit: Int = 5): List<String> {
-        if (prefix.isBlank()) return emptyList()
-        val suggestions = mutableListOf<String>()
-        try {
-            // Prefer proper names (is_proper=1) first, then sort by frequency.
-            // This surfaces "Bilbo" before "bilbo" when the prefix matches both.
-            readableDatabase.rawQuery(
-                "SELECT word FROM words WHERE word LIKE ? " +
-                "ORDER BY is_proper DESC, frequency DESC LIMIT ?",
-                arrayOf("$prefix%", limit.toString())
-            ).use { cursor ->
-                while (cursor.moveToNext()) suggestions.add(cursor.getString(0))
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-        return suggestions
-    }
-
-    fun getBigramSuggestions(prevWord: String, limit: Int = 5): List<String> {
-        if (prevWord.isBlank()) return emptyList()
-        val suggestions = mutableListOf<String>()
-        try {
-            readableDatabase.rawQuery(
-                "SELECT next_word FROM bigrams WHERE prev_word = ? ORDER BY frequency DESC LIMIT ?",
-                arrayOf(prevWord.lowercase(), limit.toString())
-            ).use { cursor ->
-                while (cursor.moveToNext()) suggestions.add(cursor.getString(0))
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-        return suggestions
-    }
-
-    fun getEmojiSuggestions(prefix: String, limit: Int = 3): List<String> {
-        if (prefix.isBlank()) return emptyList()
+        if (prefix.isBlank() || limit <= 0) return emptyList()
         val results = mutableListOf<String>()
         try {
+            val orderBy = if (hasIsProper) "is_proper DESC, frequency DESC" else "frequency DESC"
             readableDatabase.rawQuery(
-                "SELECT emoji FROM emojis WHERE name LIKE ? LIMIT ?",
+                "SELECT word FROM words WHERE word LIKE ? ORDER BY $orderBy LIMIT ?",
                 arrayOf("$prefix%", limit.toString())
             ).use { cursor ->
                 while (cursor.moveToNext()) results.add(cursor.getString(0))
@@ -84,4 +64,35 @@ class DictionaryDatabaseHelper(private val context: Context) : SQLiteOpenHelper(
         return results
     }
 
+    fun getBigramSuggestions(prevWord: String, limit: Int = 5): List<String> {
+        if (prevWord.isBlank() || limit <= 0) return emptyList()
+        val results = mutableListOf<String>()
+        try {
+            readableDatabase.rawQuery(
+                "SELECT next_word FROM bigrams WHERE prev_word = ? ORDER BY frequency DESC LIMIT ?",
+                arrayOf(prevWord.lowercase(), limit.toString())
+            ).use { cursor ->
+                while (cursor.moveToNext()) results.add(cursor.getString(0))
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return results
+    }
+
+    fun getEmojiSuggestions(prefix: String, limit: Int = 2): List<String> {
+        if (prefix.isBlank() || limit <= 0) return emptyList()
+        val results = mutableListOf<String>()
+        try {
+            readableDatabase.rawQuery(
+                "SELECT emoji FROM emojis WHERE name LIKE ? LIMIT ?",
+                arrayOf("$prefix%", limit.toString())
+            ).use { cursor ->
+                while (cursor.moveToNext()) results.add(cursor.getString(0))
+            }
+        } catch (e: Exception) {
+            // emojis table may not exist in older DBs — return empty silently
+        }
+        return results
+    }
 }

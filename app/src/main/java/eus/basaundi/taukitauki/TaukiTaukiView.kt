@@ -39,6 +39,10 @@ class TaukiTaukiView(context: Context, attrs: AttributeSet?) : View(context, att
 
     var qwertyRows: List<List<Pair<String, FlickKey?>>> = emptyList()
 
+    // The full QWERTY FlickKey grid — set by the service, used for drawing flick hints.
+    // Rows 0-2 only; row 3 is all special keys drawn separately.
+    var qwertyFlickLayout: List<List<FlickKey?>> = emptyList()
+
     // ─── Display state ────────────────────────────────────────────────────────
 
     var currentMode  = KeyboardMode.LOWER
@@ -326,18 +330,26 @@ class TaukiTaukiView(context: Context, attrs: AttributeSet?) : View(context, att
     private fun drawQwertyCellContent(canvas: Canvas, r: Int, c: Int, left: Float, top: Float, colWidth: Float) {
         val cx = left + colWidth / 2
         val cy = top + cellHeight / 2 + paintCenterText.textSize / 3
-        val mainLabel = qwertySpecialLabelFor(r, c) ?: qwertyKeyLabelFor(r, c) ?: return
-        val display = when {
-            isUppercase -> mainLabel.uppercase()
-            isShifted   -> mainLabel.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
-            else        -> mainLabel
-        }
-        canvas.drawText(display, cx, cy, paintCenterText)
 
-        // Show the flick-up digit for row 0 keys (small, top-centre of cell)
-        val digit = qwertyDigitLabelFor(r, c)
-        if (digit != null) {
-            canvas.drawText(digit, cx, top + 28f, paintFlickText)
+        // Special keys (shift, backspace, mode bar) use a single centred label
+        val specialLabel = qwertySpecialLabelFor(r, c)
+        if (specialLabel != null) {
+            canvas.drawText(specialLabel, cx, cy, paintCenterText)
+            return
+        }
+
+        // Letter/symbol keys: draw using the FlickKey if available, else fallback to plain label
+        val flickKey = qwertyFlickLayout.getOrNull(r)?.getOrNull(c)
+        if (flickKey != null) {
+            drawFlickKeyLabels(canvas, flickKey, left, top, colWidth, cellHeight)
+        } else {
+            val label = qwertyKeyLabelFor(r, c) ?: return
+            val display = when {
+                isUppercase -> label.uppercase()
+                isShifted   -> label.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+                else        -> label
+            }
+            canvas.drawText(display, cx, cy, paintCenterText)
         }
     }
 
@@ -363,13 +375,7 @@ class TaukiTaukiView(context: Context, attrs: AttributeSet?) : View(context, att
         return rows.getOrNull(r)?.getOrNull(c)?.takeIf { it.isNotEmpty() }
     }
 
-    // The digit shown as a flick-up hint on row-0 QWERTY keys
-    private fun qwertyDigitLabelFor(r: Int, c: Int): String? {
-        if (r != 0) return null
-        return listOf("1","2","3","4","5","6","7","8","9","0").getOrNull(c)
-    }
-
-    // ─── Flick key label drawing (Basque/Num) ─────────────────────────────────
+    // ─── Flick key label drawing (Basque/Num and QWERTY) ────────────────────────
 
     private fun drawFlickKeyLabels(canvas: Canvas, key: FlickKey, left: Float, top: Float, w: Float, h: Float) {
         val cx = left + w / 2

@@ -215,12 +215,24 @@ class TaukiTaukiService : InputMethodService() {
         }
     }
 
+    // Moves the cursor by `delta` characters (-1 = left, +1 = right) without
+    // sending a D-pad key event. D-pad events can steal focus when the cursor
+    // is already at the start/end of the field; setSelection() never does.
+    private fun moveCursor(delta: Int) {
+        val ic = currentInputConnection ?: return
+        val info = ic.getExtractedText(android.view.inputmethod.ExtractedTextRequest(), 0) ?: return
+        val sel = info.selectionStart
+        val len = info.text?.length ?: 0
+        val newPos = (sel + delta).coerceIn(0, len)
+        ic.setSelection(newPos, newPos)
+    }
+
     private fun handleBasqueAction(r: Int, c: Int, gesture: Gesture) {
         val ic = currentInputConnection ?: return
         when {
             r == 2 && c == 0 -> handleShiftTap()
-            r == 1 && c == 0 -> { commitCurrent(); ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_LEFT));  updateCapsMode() }
-            r == 1 && c == 4 -> { commitCurrent(); ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_RIGHT)); updateCapsMode() }
+            r == 1 && c == 0 -> { commitCurrent(); moveCursor(-1); updateCapsMode() }
+            r == 1 && c == 4 -> { commitCurrent(); moveCursor(+1); updateCapsMode() }
             r == 2 && c == 4 -> { commitCurrent(); ic.commitText(" ", 1); updateCapsMode() }
             r == 3 && c == 4 -> { commitCurrent(); ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER)); updateCapsMode() }
             r == 3 && c == 0 -> cycleMode()
@@ -237,8 +249,8 @@ class TaukiTaukiService : InputMethodService() {
             r == 3 && c == 1 -> { commitCurrent(); ic.commitText(",", 1); updateCapsMode() }
             r == 3 && c == 2 -> { commitCurrent(); ic.commitText(" ", 1); updateCapsMode() }
             r == 3 && c == 4 -> { commitCurrent(); ic.commitText(".", 1); updateCapsMode() }
-            r == 3 && c == 5 -> { commitCurrent(); ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_LEFT));  updateCapsMode() }
-            r == 3 && c == 6 -> { commitCurrent(); ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_DPAD_RIGHT)); updateCapsMode() }
+            r == 3 && c == 5 -> { commitCurrent(); moveCursor(-1); updateCapsMode() }
+            r == 3 && c == 6 -> { commitCurrent(); moveCursor(+1); updateCapsMode() }
             r == 3 && c == 7 -> { commitCurrent(); ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER)); updateCapsMode() }
             else -> {
                 val key = qwertyLayout.getOrNull(r)?.getOrNull(c) ?: return

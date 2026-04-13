@@ -40,8 +40,11 @@ class TaukiTaukiView(context: Context, attrs: AttributeSet?) : View(context, att
     var qwertyRows: List<List<Pair<String, FlickKey?>>> = emptyList()
 
     // The full QWERTY FlickKey grid — set by the service, used for drawing flick hints.
-    // Rows 0-2 only; row 3 is all special keys drawn separately.
+    // Rows 0-2 only; row 3 punct keys are stored separately.
     var qwertyFlickLayout: List<List<FlickKey?>> = emptyList()
+
+    // FlickKey definitions for punctuation slots in QWERTY row 3 (col→key).
+    var qwertyPunctKeys: Map<Int, FlickKey> = emptyMap()
 
     // ─── Display state ────────────────────────────────────────────────────────
 
@@ -331,14 +334,23 @@ class TaukiTaukiView(context: Context, attrs: AttributeSet?) : View(context, att
         val cx = left + colWidth / 2
         val cy = top + cellHeight / 2 + paintCenterText.textSize / 3
 
-        // Special keys (shift, backspace, mode bar) use a single centred label
+        // Row-3 punct keys (comma col=1, period col=4) use FlickKey for flick hints
+        if (r == 3) {
+            val punctKey = qwertyPunctKeys[c]
+            if (punctKey != null) {
+                drawFlickKeyLabels(canvas, punctKey, left, top, colWidth, cellHeight)
+                return
+            }
+        }
+
+        // Other special keys (shift, backspace, mode bar, space, arrows, enter)
         val specialLabel = qwertySpecialLabelFor(r, c)
         if (specialLabel != null) {
             canvas.drawText(specialLabel, cx, cy, paintCenterText)
             return
         }
 
-        // Letter/symbol keys: draw using the FlickKey if available, else fallback to plain label
+        // Letter/symbol keys: draw using FlickKey if available, else plain label
         val flickKey = qwertyFlickLayout.getOrNull(r)?.getOrNull(c)
         if (flickKey != null) {
             drawFlickKeyLabels(canvas, flickKey, left, top, colWidth, cellHeight)

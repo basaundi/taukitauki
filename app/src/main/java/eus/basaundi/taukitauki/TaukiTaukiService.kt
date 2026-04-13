@@ -46,22 +46,101 @@ class TaukiTaukiService : InputMethodService() {
         updatePasteButtonVisibility()
     }
 
-    // ─── Mutation map ─────────────────────────────────────────────────────────
-
-    private val mutationMap = mapOf(
-        "k" to "g", "g" to "k", "z" to "tz", "tz" to "z",
-        "t" to "d", "d" to "t", "n" to "l", "l" to "n",
-        "p" to "b", "b" to "p", "s" to "ts", "ts" to "s",
-        "x" to "tx", "tx" to "x", "r" to "rr", "rr" to "r",
-        "m" to "j", "j" to "m", "h" to "",
-        "a" to "ha", "e" to "he", "i" to "hi", "o" to "ho", "u" to "hu", "ü" to "hü",
-        "ha" to "a", "he" to "e", "hi" to "i", "ho" to "o", "hu" to "u", "hü" to "ü",
-        "(" to ")", ")" to "(", "\"" to "'", "'" to "\"",
-        "{" to "}", "}" to "{",
-        "<" to ">", ">" to "<", "[" to "]", "]" to "[",
-        "/" to "\\", "\\" to "/",
-        "-" to "_", "_" to "-", "?" to "¿", "¿" to "?", "!" to "¡", "¡" to "!",
+    // ─── Rotation groups ──────────────────────────────────────────────────────
+    //
+    // Each inner list is a rotation cycle: the swap button advances lastInput to the
+    // next entry in its group (wrapping around). No need to define inverses.
+    // Entries are lowercase; case is applied via applyInputCase() at call time.
+    //
+    private val rotationGroups: List<List<String>> = listOf(
+        // k / g / c  — velar stops
+        listOf("ka", "ga", "ca"),
+        listOf("ke", "ge", "que"),
+        listOf("ki", "gi", "qui"),
+        listOf("ko", "go", "co"),
+        listOf("ku", "gu", "cu"),
+        listOf("k", "g", "c", "q"),
+        // z / tz / ç
+        listOf("za", "tza", "ça"),
+        listOf("ze", "tze", "ce"),
+        listOf("zi", "tzi", "ci"),
+        listOf("zo", "tzo", "ço"),
+        listOf("zu", "tzu", "çu"),
+        listOf("z", "tz", "c", "ç"),
+        // t / d / dd
+        listOf("ta", "da", "dda"),
+        listOf("te", "de", "dde"),
+        listOf("ti", "di", "ddi"),
+        listOf("to", "do", "ddo"),
+        listOf("tu", "du", "ddu"),
+        listOf("t", "d", "dd"),
+        // n / l / ñ / ll
+        listOf("na", "la", "ña", "lla"),
+        listOf("ne", "le", "ñe", "lle"),
+        listOf("ni", "li", "ñi", "lli"),
+        listOf("no", "lo", "ño", "llo"),
+        listOf("nu", "lu", "ñu", "llu"),
+        listOf("n", "l", "ñ", "ll"),
+        // b / p / f / v
+        listOf("ba", "pa", "fa", "va"),
+        listOf("be", "pe", "fe", "ve"),
+        listOf("bi", "pi", "fi", "vi"),
+        listOf("bo", "po", "fo", "vo"),
+        listOf("bu", "pu", "fu", "vu"),
+        listOf("b", "p", "f", "v"),
+        // s / ts
+        listOf("sa", "tsa"),
+        listOf("se", "tse"),
+        listOf("si", "tsi"),
+        listOf("so", "tso"),
+        listOf("su", "tsu"),
+        listOf("s", "ts"),
+        // x / tx
+        listOf("xa", "txa"),
+        listOf("xe", "txe"),
+        listOf("xi", "txi"),
+        listOf("xo", "txo"),
+        listOf("xu", "txu"),
+        listOf("x", "tx"),
+        // r / rr
+        listOf("ra", "rra"),
+        listOf("re", "rre"),
+        listOf("ri", "rri"),
+        listOf("ro", "rro"),
+        listOf("ru", "rru"),
+        listOf("r", "rr"),
+        // m / j
+        listOf("ma", "ja"),
+        listOf("me", "je"),
+        listOf("mi", "ji"),
+        listOf("mo", "jo"),
+        listOf("mu", "ju"),
+        listOf("m", "j"),
+        // Vowel h-mutation
+        listOf("a", "ha"),
+        listOf("e", "he"),
+        listOf("i", "hi"),
+        listOf("o", "ho"),
+        listOf("u", "hu"),
+        listOf("ü", "hü"),
+        // Brackets / punctuation
+        listOf("(", ")"),
+        listOf("[", "]"),
+        listOf("{", "}"),
+        listOf("<", ">"),
+        listOf("/", "\\"),
+        listOf("-", "_"),
+        listOf("?", "¿"),
+        listOf("!", "¡"),
+        listOf("\"", "'"),
     )
+
+    // Flat lookup: lowercase string → its rotation group (for O(1) access)
+    private val rotationIndex: Map<String, List<String>> = buildMap {
+        for (group in rotationGroups) {
+            for (entry in group) put(entry, group)
+        }
+    }
 
     // ─── Keyboard layouts ─────────────────────────────────────────────────────
 
@@ -139,6 +218,16 @@ class TaukiTaukiService : InputMethodService() {
             null,
         )
     )
+
+    // Flick keys for the punctuation slots in QWERTY row 3 (col 1 = comma, col 4 = period).
+    // All other row-3 keys are pure special actions with no flick alternatives.
+    private val qwertyPunctKeys: Map<Int, FlickKey> = mapOf(
+        1 to FlickKey(",", up=";", down=":", left="…", right="-",
+                      ul="„", ur="“", dl="‘", dr="'"),
+        4 to FlickKey(".", up="!", down="?", left="…", right="&",
+                      ul="¡", ur="¿", dl="•", dr="·"),
+    )
+
     // ─── Lifecycle ────────────────────────────────────────────────────────────
 
     override fun onCreate() {
@@ -246,9 +335,15 @@ class TaukiTaukiService : InputMethodService() {
         when {
             r == 2 && c == 0 -> handleShiftTap()
             r == 3 && c == 0 -> cycleMode()
-            r == 3 && c == 1 -> { commitCurrent(); ic.commitText(",", 1); updateCapsMode() }
+            r == 3 && c == 1 -> {
+                val ch = qwertyPunctKeys[1]?.getChar(gesture) ?: ","
+                commitCurrent(); ic.commitText(ch, 1); updateCapsMode()
+            }
             r == 3 && c == 2 -> { commitCurrent(); ic.commitText(" ", 1); updateCapsMode() }
-            r == 3 && c == 4 -> { commitCurrent(); ic.commitText(".", 1); updateCapsMode() }
+            r == 3 && c == 4 -> {
+                val ch = qwertyPunctKeys[4]?.getChar(gesture) ?: "."
+                commitCurrent(); ic.commitText(ch, 1); updateCapsMode()
+            }
             r == 3 && c == 5 -> { commitCurrent(); moveCursor(-1); updateCapsMode() }
             r == 3 && c == 6 -> { commitCurrent(); moveCursor(+1); updateCapsMode() }
             r == 3 && c == 7 -> { commitCurrent(); ic.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER)); updateCapsMode() }
@@ -258,6 +353,7 @@ class TaukiTaukiService : InputMethodService() {
                 val isLetter = raw.any { it.isLetter() }
                 // Letters respect case mode; symbols/digits are committed as-is
                 var s = if (isLetter) applyCase(raw) else raw
+                val inputMode = currentMode  // capture before TITLE steps down to LOWER
                 if (isLetter && currentMode == KeyboardMode.TITLE) {
                     currentMode = KeyboardMode.LOWER
                     refreshKeyboardModeUI()
@@ -267,7 +363,7 @@ class TaukiTaukiService : InputMethodService() {
                 else if (composingWord.isNotEmpty() && !composingWord.any { it.isLetter() }) commitCurrent()
                 composingWord.append(s)
                 lastInput = s
-                lastInputMode = if (isLetter) currentMode else KeyboardMode.LOWER
+                lastInputMode = if (isLetter) inputMode else KeyboardMode.LOWER
                 updateUI()
                 ic.endBatchEdit()
             }
@@ -298,6 +394,7 @@ class TaukiTaukiService : InputMethodService() {
         var s = key.getChar(gesture) ?: return
 
         s = applyCase(s)
+        val inputMode = currentMode  // capture before TITLE steps down to LOWER
         if (currentMode == KeyboardMode.TITLE && s.any { it.isLetter() }) {
             currentMode = KeyboardMode.LOWER
             refreshKeyboardModeUI()
@@ -308,7 +405,7 @@ class TaukiTaukiService : InputMethodService() {
         else if (composingWord.isNotEmpty() && !composingWord.any { it.isLetter() }) commitCurrent()
         composingWord.append(s)
         lastInput = s
-        lastInputMode = currentMode
+        lastInputMode = inputMode
         updateUI()
         ic.endBatchEdit()
     }
@@ -347,27 +444,18 @@ class TaukiTaukiService : InputMethodService() {
         }
     }
 
-    // ─── Mutation ─────────────────────────────────────────────────────────────
+    // ─── Rotation (swap) ──────────────────────────────────────────────────────
 
-    private fun getMutationTarget(input: String): String? {
+    // Returns the next entry in the rotation group for `input`, or null if no group
+    // contains it. Case of the result mirrors the mode active when lastInput was typed.
+    private fun getRotationNext(input: String): String? {
         if (input.isEmpty()) return null
-        val key = input.lowercase()
-
-        // 1. Direct lookup (pure vowels, h-prefixed vowels, digraphs like "tz")
-        mutationMap[key]?.let { return applyInputCase(it) }
-
-        // 2. Syllable lookup: strip trailing vowel, look up consonant, reattach vowel
-        val vowelRegex = "[aeiouüAEIOUÜ]$".toRegex()
-        val vowelMatch = vowelRegex.find(input)
-        if (vowelMatch != null) {
-            val vowel = vowelMatch.value
-            val base  = input.dropLast(vowel.length)
-            if (base.isNotEmpty()) {
-                mutationMap[base.lowercase()]?.let { return applyInputCase(it) + vowel }
-            }
-        }
-
-        return null
+        val key   = input.lowercase()
+        val group = rotationIndex[key] ?: return null
+        val idx   = group.indexOf(key)
+        if (idx == -1) return null
+        val nextLower = group[(idx + 1) % group.size]
+        return applyInputCase(nextLower)
     }
 
     // Case is determined by the mode active when lastInput was typed, not by inspecting
@@ -379,11 +467,11 @@ class TaukiTaukiService : InputMethodService() {
     }
 
     private fun performMutation() {
-        val mutated = getMutationTarget(lastInput) ?: return
+        val rotated = getRotationNext(lastInput) ?: return
         val idx = composingWord.lastIndexOf(lastInput)
         if (idx != -1) {
-            composingWord.replace(idx, idx + lastInput.length, mutated)
-            lastInput = mutated
+            composingWord.replace(idx, idx + lastInput.length, rotated)
+            lastInput = rotated
             updateUI()
         }
     }
@@ -452,9 +540,9 @@ class TaukiTaukiService : InputMethodService() {
         }
 
         if (!::keyboardView.isInitialized) return
-        val mutated = getMutationTarget(lastInput)
-        keyboardView.swapLabel = if (mutated != null)
-            getString(R.string.swap_indicator_format, lastInput.lowercase(), mutated)
+        val rotNext = getRotationNext(lastInput)
+        keyboardView.swapLabel = if (rotNext != null)
+            getString(R.string.swap_indicator_format, lastInput.lowercase(), rotNext.lowercase())
         else
             getString(R.string.label_swap)
         keyboardView.invalidate()
@@ -467,6 +555,7 @@ class TaukiTaukiService : InputMethodService() {
         keyboardView.currentMode = currentMode
         keyboardView.qwertyActive = qwertyActive
         keyboardView.qwertyFlickLayout = qwertyLayout
+        keyboardView.qwertyPunctKeys   = qwertyPunctKeys
         // layoutMap is only used for Basque/Num; QWERTY has its own draw path
         val rawLayout = if (currentMode == KeyboardMode.NUM) numLayout else basqueLayout
         keyboardView.layoutMap = KeyFilter.applyToLayout(this, rawLayout)

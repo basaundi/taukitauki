@@ -24,30 +24,32 @@ android {
         versionName = "1.0.4"
     }
 
-    if (keystorePropsFile.exists()) {
-        signingConfigs {
-            create("release") {
-                keyAlias     = keystoreProps["keyAlias"]     as String
-                keyPassword  = keystoreProps["keyPassword"]  as String
-                storeFile    = file(keystoreProps["storeFile"] as String)
-                storePassword = keystoreProps["storePassword"] as String
-            }
-        }
-    }
-
     buildTypes {
         release {
             isMinifyEnabled = false
-            // Fall back to debug signing so AGP always places the APK in the
-            // standard outputs/ directory. F-Droid strips and re-signs anyway.
-            signingConfig = if (keystorePropsFile.exists())
-                signingConfigs.getByName("release")
-            else
-                signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+        }
+    }
+
+    // Signing is only configured when keystore.properties is present.
+    // F-Droid builds without it, producing a truly unsigned APK that
+    // fdroidserver strips and re-signs with its own key.
+    if (keystorePropsFile.exists()) {
+        signingConfigs {
+            create("release") {
+                keyAlias      = keystoreProps["keyAlias"]      as String
+                keyPassword   = keystoreProps["keyPassword"]   as String
+                storeFile     = file(keystoreProps["storeFile"] as String)
+                storePassword = keystoreProps["storePassword"] as String
+            }
+        }
+        buildTypes {
+            getByName("release") {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
     dependenciesInfo {

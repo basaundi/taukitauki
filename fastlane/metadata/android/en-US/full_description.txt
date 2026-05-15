@@ -1,0 +1,9 @@
+TaukiTauki is a Basque keyboard designed around flick input. Each key supports eight flick directions, letting you enter syllables and character variants without leaving the home position.
+
+Features:
+• Flick-input Basque layout with morphological rotation groups (ka→ga→ca, za→tza→ça, …)
+• Word suggestions and bigram predictions
+• Emoji lookup by name
+• QWERTY fallback layout with accent flicks for extended Latin characters
+• Configurable character set — toggle uncommon Basque letters, borrowed letters, and punctuation extras
+• Fully offline — no network access, no telemetry, no tracking

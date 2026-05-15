@@ -1,0 +1,9 @@
+TaukiTauki euskal teklatua da, flick-sarreran oinarritua. Tekla bakoitzak zortzi flick-norabide onartzen ditu, silabak eta karaktere-aldaerak sartzeko posizio nagusia utzi gabe.
+
+Ezaugarriak:
+• Flick-sarrerako euskal diseinua, biraketa morfologikoekin (ka→ga→ca, za→tza→ça, …)
+• Hitz-iradokizunak eta bigrama-iragarpenak
+• Emojiak izenaren arabera bilatu
+• QWERTY ordezko diseinua, Latin karaktere hedatuen azentuekin
+• Karaktere-multzo konfiguragarria — euskal letra arraroak, maileguzko letrak eta puntuazio-ikurrak txandakatu
+• Guztiz lineaz kanpo — sare-sarbiderik ez, jarraipen-sistema ezta segimendua ere

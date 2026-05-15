@@ -23,5 +23,8 @@ Builds:
     gradle:
       - yes
 
+CurrentVersion: '1.0'
+CurrentVersionCode: 1
+
 AutoUpdateMode: Version v%v
 UpdateCheckMode: Tags

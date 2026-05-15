@@ -88,4 +88,17 @@ afterEvaluate {
         (n.startsWith("merge") && n.endsWith("Assets")) ||
         n.contains("lint", ignoreCase = true)
     }.configureEach { dependsOn(generateDict) }
+
+    // fdroidserver looks for APKs in {project_root}/build/outputs/apk/release/,
+    // but AGP places them in {project_root}/app/build/outputs/apk/release/.
+    // Copy the APK up so fdroidserver finds it.
+    tasks.named("assembleRelease") {
+        doLast {
+            val src = layout.buildDirectory.dir("outputs/apk/release").get().asFile
+            val dst = rootProject.layout.buildDirectory.dir("outputs/apk/release").get().asFile
+            dst.mkdirs()
+            src.listFiles { f -> f.name.endsWith(".apk") }
+                ?.forEach { apk -> apk.copyTo(File(dst, apk.name), overwrite = true) }
+        }
+    }
 }

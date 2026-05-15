@@ -16,4 +16,11 @@
     <string name="label_right">→</string>
     <string name="label_space_key">␣</string>
     <string name="label_enter">⏎</string>
+    <string name="setup_step1_title">Enable TaukiTauki</string>
+    <string name="setup_step1_desc">Turn it on in Settings → Manage keyboards</string>
+    <string name="setup_step2_title">Select TaukiTauki</string>
+    <string name="setup_step2_desc">Switch to it using the keyboard picker</string>
+    <string name="setup_btn_enable">Open keyboard settings</string>
+    <string name="setup_btn_switch">Switch to TaukiTauki</string>
+    <string name="setup_btn_done">All set!</string>
 </resources>

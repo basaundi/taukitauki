@@ -50,6 +50,11 @@ android {
             )
         }
     }
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }
+
     lint {
         // lintVital uses a JVM version parser that chokes on Java 26 locally;
         // F-Droid builds on Java 17/21 where this is fine.

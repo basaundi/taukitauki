@@ -74,6 +74,9 @@ val generateDict by tasks.registering(Exec::class) {
 }
 
 afterEvaluate {
-    tasks.matching { it.name.startsWith("merge") && it.name.endsWith("Assets") }
-        .configureEach { dependsOn(generateDict) }
+    tasks.matching { task ->
+        val n = task.name
+        (n.startsWith("merge") && n.endsWith("Assets")) ||
+        n.contains("lint", ignoreCase = true)
+    }.configureEach { dependsOn(generateDict) }
 }

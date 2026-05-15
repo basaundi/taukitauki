@@ -23,4 +23,8 @@
     <string name="setup_btn_enable">Open keyboard settings</string>
     <string name="setup_btn_switch">Switch to TaukiTauki</string>
     <string name="setup_btn_done">All set!</string>
+    <string name="settings_activity_label">TaukiTauki Settings</string>
+    <string name="settings_category_uncommon">Uncommon Basque letters</string>
+    <string name="settings_category_latin">Latin / borrowed letters</string>
+    <string name="settings_category_punctuation">Punctuation extras</string>
 </resources>

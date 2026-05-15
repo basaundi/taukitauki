@@ -27,13 +27,13 @@ class SettingsActivity : PreferenceActivity() {
 
         // Characters that can be individually toggled, grouped by category.
         // Each entry: (key-suffix, display label, default enabled)
-        private val charGroups = listOf(
-            "Uncommon Basque letters" to listOf(
+        private val charGroups get() = listOf(
+            getString(R.string.settings_category_uncommon) to listOf(
                 Triple("ç",  "ç  (c cedilla)",      true),
                 Triple("ü",  "ü  (u umlaut)",        true),
                 Triple("ñ",  "ñ  (n tilde)",         true),
             ),
-            "Latin / borrowed letters" to listOf(
+            getString(R.string.settings_category_latin) to listOf(
                 Triple("q",  "q",   true),
                 Triple("w",  "w",   true),
                 Triple("v",  "v",   true),
@@ -41,7 +41,7 @@ class SettingsActivity : PreferenceActivity() {
                 Triple("y",  "y",   true),
                 Triple("c",  "c",   true),
             ),
-            "Punctuation extras" to listOf(
+            getString(R.string.settings_category_punctuation) to listOf(
                 Triple("@",  "@  (at)",              true),
                 Triple("&",  "&  (ampersand)",        true),
                 Triple("|",  "|  (pipe)",             true),

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="setup_step1_title">Gaitu TaukiTauki</string>
+    <string name="setup_step1_desc">Aktibatu Ezarpenak → Teklatuak kudeatu atalean</string>
+    <string name="setup_step2_title">Hautatu TaukiTauki</string>
+    <string name="setup_step2_desc">Aldatu teklatuen hautatzailea erabiliz</string>
+    <string name="setup_btn_enable">Ireki teklatuen ezarpenak</string>
+    <string name="setup_btn_switch">Aldatu TaukiTaukira</string>
+    <string name="setup_btn_done">Prest!</string>
+    <string name="settings_activity_label">TaukiTauki ezarpenak</string>
+    <string name="settings_category_uncommon">Euskal letra arraroak</string>
+    <string name="settings_category_latin">Latin / maileguzko letrak</string>
+    <string name="settings_category_punctuation">Puntuazio-ikur osagarriak</string>
+</resources>

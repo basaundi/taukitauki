@@ -17,12 +17,6 @@ RepoType: git
 Repo: https://github.com/basaundi/taukitauki
 
 Builds:
-  - versionName: '1.0'
-    versionCode: 1
-    commit: v1.0.3
-    gradle:
-      - yes
-
   - versionName: 1.0.4
     versionCode: 4
     commit: v1.0.4

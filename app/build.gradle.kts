@@ -1,11 +1,20 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
 }
 
+// ─── Release signing ──────────────────────────────────────────────────────────
+// Create keystore.properties (see keystore.properties.example) to enable signed builds.
+val keystorePropsFile = rootProject.file("keystore.properties")
+val keystoreProps = Properties().apply {
+    if (keystorePropsFile.exists()) load(keystorePropsFile.inputStream())
+}
+
 android {
     namespace = "eus.basaundi.taukitauki"
-    compileSdk = 35 // Bumped for 2026
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "eus.basaundi.taukitauki"
@@ -15,9 +24,23 @@ android {
         versionName = "1.0"
     }
 
+    if (keystorePropsFile.exists()) {
+        signingConfigs {
+            create("release") {
+                keyAlias     = keystoreProps["keyAlias"]     as String
+                keyPassword  = keystoreProps["keyPassword"]  as String
+                storeFile    = file(keystoreProps["storeFile"] as String)
+                storePassword = keystoreProps["storePassword"] as String
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            if (keystorePropsFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -37,4 +60,20 @@ dependencies {
     implementation("androidx.core:core-ktx:1.13.0")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("com.google.android.material:material:1.12.0")
+}
+
+// ─── Dictionary database generation ──────────────────────────────────────────
+// Runs make_dictionary.py to produce app/src/main/assets/dict.db from data/*.json.
+// Re-runs only when a source JSON file changes (Gradle up-to-date checks).
+val generateDict by tasks.registering(Exec::class) {
+    group = "build"
+    description = "Build dict.db from data/*.json via make_dictionary.py"
+    inputs.files(fileTree(rootProject.projectDir.resolve("data")) { include("*.json") })
+    outputs.file(layout.projectDirectory.file("src/main/assets/dict.db"))
+    commandLine("python3", rootProject.projectDir.resolve("make_dictionary.py").absolutePath)
+}
+
+afterEvaluate {
+    tasks.matching { it.name.startsWith("merge") && it.name.endsWith("Assets") }
+        .configureEach { dependsOn(generateDict) }
 }

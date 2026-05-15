@@ -1,10 +1,10 @@
 .gradle
-gradle
-gradlew
-gradlew.bat
 .kotlin
-.apk
 build
 .idea
 local.properties
-dict.db
+keystore.properties
+*.jks
+*.keystore
+app/src/main/assets/dict.db
+data/dropped_words.log

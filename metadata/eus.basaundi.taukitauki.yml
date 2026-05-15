@@ -22,9 +22,13 @@ Builds:
     commit: v1.0.3
     gradle:
       - yes
+  - versionName: 1.0.4
+    versionCode: 4
+    commit: v1.0.4
+    gradle:
+      - yes
 
-CurrentVersion: '1.0'
-CurrentVersionCode: 1
-
-AutoUpdateMode: Version v%v
+AutoUpdateMode: Version
 UpdateCheckMode: Tags
+CurrentVersion: 1.0.4
+CurrentVersionCode: 4

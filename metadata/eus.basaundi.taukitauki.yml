@@ -1,17 +1,11 @@
 Categories:
-  - Writing
+  - Keyboard & IME
 License: MIT
 AuthorName: Ander Martinez
 SourceCode: https://github.com/basaundi/taukitauki
 IssueTracker: https://github.com/basaundi/taukitauki/issues
 
 AutoName: TaukiTauki
-Description: |-
-  Basque flick-input keyboard for Android. Each key supports eight flick
-  directions for fast syllable entry. Includes word suggestions, bigram
-  predictions, emoji lookup, and a QWERTY fallback layout.
-
-  The keyboard is fully offline — no network access, no telemetry.
 
 RepoType: git
 Repo: https://github.com/basaundi/taukitauki
@@ -19,7 +13,7 @@ Repo: https://github.com/basaundi/taukitauki
 Builds:
   - versionName: 1.0.4
     versionCode: 4
-    commit: v1.0.4
+    commit: 825a55300e48b368a9e07c25862e7846f39e984b
     gradle:
       - yes
 

@@ -154,7 +154,7 @@ class TaukiTaukiService : InputMethodService() {
         Pair(1, 3) to FlickKey("ba", "bu", "bo", "bi", "be", ur = "b", dr = "f", dl = "p", ul = "v"),
         Pair(2, 0) to FlickKey("⇧"),
         Pair(2, 1) to FlickKey("ma", "mu", "mo", "mi", "me", ur = "m", dl = "j"),
-        Pair(2, 2) to FlickKey("sa", "su", "so", "si", "se", ur = "s", dl = "tz"),
+        Pair(2, 2) to FlickKey("sa", "su", "so", "si", "se", ur = "s", dl = "ts"),
         Pair(2, 3) to FlickKey("ra", "ru", "ro", "ri", "re", ur = "r", dl = "h"),
         Pair(3, 2) to FlickKey("xa", "xu", "xo", "xi", "xe", ur = "x", dl = "tx"),
         Pair(3, 3) to FlickKey(", ", "? ", ". ", "-", "! ", ur = "@", ul = "%", dr = "*", dl = "+")

@@ -252,6 +252,15 @@ class TaukiTaukiService : InputMethodService() {
         val root = layoutInflater.inflate(R.layout.keyboard_layout, null)
         keyboardView = root.findViewById(R.id.taukitauki_keyboard_view)
 
+        val screenHeight = resources.displayMetrics.heightPixels
+        val navBarResId = resources.getIdentifier("navigation_bar_height", "dimen", "android")
+        val navBarHeight = if (navBarResId > 0) resources.getDimensionPixelSize(navBarResId) else 0
+        val candidatesBarHeightPx = (40 * resources.displayMetrics.density).toInt()
+        root.setPadding(0, 0, 0, navBarHeight)
+        keyboardView.layoutParams = keyboardView.layoutParams.apply {
+            height = screenHeight / 3 - candidatesBarHeightPx
+        }
+
         suggestions = listOf(
             root.findViewById(R.id.sug1),
             root.findViewById(R.id.sug2),
